@@ -36,6 +36,7 @@ env/
 # Environment variables
 .env
 .env.local
+.env.*.local
 
 # Logs
 *.log
@@ -47,6 +48,9 @@ temp/
 *.png
 *.jpg
 *.jpeg
+*.xlsx
+*.xls
+*.csv
 
 # Model cache
 .cache/
@@ -55,3 +59,12 @@ models/
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
