@@ -1,29 +1,70 @@
 # 💰 Financial Statement AI Chatbox
 
-A conversational AI agent for the financial field that supports users to upload financial statements, automatically extract information, calculate key financial indicators, identify trends and risks, and provide interactive Q&A.
+A comprehensive conversational AI agent for analyzing financial statements with advanced features including multi-format support, interactive dashboards, voice capabilities, and peer benchmarking.
 
-## 🌟 Features
+## 🌟 Key Features
 
-- **📤 Document Upload**: Support for PDF and image formats (PNG, JPG, JPEG)
-- **🔍 Automatic Extraction**: AI-powered extraction of financial data from statements
-- **📊 Financial Indicators**: Calculate key ratios including:
-  - Profit Margin
-  - Return on Assets (ROA)
-  - Return on Equity (ROE)
-  - Debt-to-Asset Ratio
-- **📈 Trend Analysis**: Identify revenue and profit trends across multiple periods
-- **⚠️ Risk Assessment**: Automatic identification of financial risks with severity levels
-- **💡 AI Insights**: LLM-powered analysis and recommendations
-- **💬 Interactive Q&A**: Conversational interface to ask questions about the financial statement
-- **🖼️ Multimodal Support**: Vision AI for analyzing financial statement images
+### Document Processing
+- **📤 Multi-Format Support**: PDF, Images (PNG/JPG), Excel, CSV, XBRL
+- **🔍 Advanced OCR**: Automatic table recognition and text extraction
+- **🖼️ Multimodal Analysis**: GPT-4 Vision for analyzing financial statement images
+
+### Financial Analysis
+- **📊 Comprehensive Indicators**: 
+  - Profitability: Profit Margin, ROA, ROE, Gross Margin
+  - Liquidity: Current Ratio, Quick Ratio, Cash Ratio
+  - Leverage: Debt-to-Asset, Debt-to-Equity, Interest Coverage
+  - Efficiency: Asset Turnover, Inventory Turnover
+  - Cash Flow: Operating Cash Flow, Free Cash Flow
+- **📈 DuPont Analysis**: Three-factor ROE decomposition
+- **📉 Trend Analysis**: Multi-period comparison and growth analysis
+- **⚠️ Risk Detection**: Automated identification of financial anomalies
+
+### User Interfaces
+- **🖥️ Next.js Web App**: Modern, responsive UI with Material-UI
+- **📱 Mobile-Friendly**: Responsive design for all devices
+- **🌓 Dark Mode**: Eye-friendly interface switching
+- **💬 Interactive Chat**: AI-powered Q&A about financial statements
+- **🎤 Voice Input**: Speech recognition for questions (Web Speech API)
+- **🔊 Voice Output**: Text-to-speech for responses
+
+### Advanced Features
+- **📊 Visual Dashboard**: Interactive charts with ECharts
+- **📈 Trend Visualization**: Line charts, bar charts, radar charts
+- **🔄 Session History**: Save and restore analysis sessions
+- **📥 Export Reports**: PDF and Markdown report generation
+- **🆚 Peer Benchmarking**: Compare with industry standards (coming soon)
 
 ## 🏗️ Architecture
 
-The system uses a multimodal workflow combining:
-- **Document Parsing**: Extract text from PDFs or analyze images with Vision AI
-- **Financial Analysis**: Calculate ratios and identify patterns
-- **LLM Integration**: Generate insights and answer questions using GPT-4
-- **Web Interface**: User-friendly Streamlit interface
+### Frontend (Next.js + Material-UI)
+- **Technology Stack**: Next.js 14, TypeScript, Material-UI 5
+- **Components**: 
+  - FileUpload: Multi-format drag-and-drop upload
+  - FinancialDashboard: Key metrics and charts
+  - ChatInterface: AI-powered Q&A with voice support
+  - TrendAnalysis: Multi-period trends and DuPont analysis
+- **Features**: Dark mode, responsive design, session management
+
+### Backend (FastAPI)
+- **API Server**: RESTful API with FastAPI
+- **Document Parsing**: Enhanced parser for PDF, Excel, CSV, XBRL
+- **Financial Analysis**: Comprehensive ratio calculations and trend analysis
+- **LLM Integration**: GPT-4 for insights and conversational AI
+- **Data Processing**: Pandas for structured data, PyPDF2 for PDFs
+
+### System Workflow
+1. **Document Upload**: User uploads files via web interface
+2. **Format Detection**: Backend identifies file type and routes to appropriate parser
+3. **Data Extraction**: Extract financial data using appropriate method:
+   - PDFs: Text extraction with PyPDF2
+   - Images: GPT-4 Vision analysis
+   - Excel/CSV: Pandas dataframe processing
+   - XBRL: XML parsing with financial tag mapping
+4. **Financial Analysis**: Calculate ratios, identify trends, assess risks
+5. **AI Enhancement**: GPT-4 generates insights and answers questions
+6. **Visualization**: Display results in interactive dashboard with charts
+7. **Export**: Generate PDF/Markdown reports (coming soon)
 
 ## 📋 Prerequisites
 
@@ -32,46 +73,65 @@ The system uses a multimodal workflow combining:
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+### Prerequisites
+
+- Python 3.8 or higher
+- Node.js 18 or higher
+- OpenAI API key (for LLM features)
+
+### Backend Setup
+
+1. **Clone and Install Python Dependencies**
 
 ```bash
 git clone https://github.com/BrianChen33/Analyzing-Financial-Statement-AIChatbox.git
 cd Analyzing-Financial-Statement-AIChatbox
-```
-
-### 2. Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+2. **Configure Environment**
 
-Copy the example environment file and add your OpenAI API key:
-
+Create `.env` file:
 ```bash
 cp .env.example .env
+# Edit .env and add your OpenAI API key
 ```
 
-Edit `.env` and add your API key:
-```
-OPENAI_API_KEY=your-api-key-here
+3. **Start FastAPI Backend**
+
+```bash
+python api_server.py
+# API runs on http://localhost:8000
 ```
 
-### 4. Run the Application
+### Frontend Setup
 
-#### Option A: Web Interface (Recommended)
+1. **Install Node Dependencies**
+
+```bash
+cd frontend
+npm install
+```
+
+2. **Configure Frontend**
+
+Create `.env.local`:
+```bash
+API_URL=http://localhost:8000
+```
+
+3. **Start Next.js Development Server**
+
+```bash
+npm run dev
+# Frontend runs on http://localhost:3000
+```
+
+### Alternative: Streamlit Interface (Legacy)
 
 ```bash
 streamlit run app.py
-```
-
-Then open your browser to `http://localhost:8501`
-
-#### Option B: Command Line Interface
-
-```bash
-python src/chatbot.py path/to/financial_statement.pdf
+# Opens on http://localhost:8501
 ```
 
 ## 💻 Usage
