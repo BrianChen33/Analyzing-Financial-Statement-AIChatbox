@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 from src.chatbot import FinancialChatbot
 

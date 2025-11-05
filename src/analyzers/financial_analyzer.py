@@ -38,25 +38,26 @@ class FinancialAnalyzer:
         lines = text_data.lower().split('\n')
         for line in lines:
             if 'revenue' in line or 'sales' in line:
-                # Extract numeric values (simplified)
+                # Extract numeric values - take the largest value to handle multi-year data
                 numbers = self._extract_numbers(line)
                 if numbers and not financial_data['revenue']:
-                    financial_data['revenue'] = numbers[0]
+                    # Use the maximum value to get current year data
+                    financial_data['revenue'] = max(numbers)
             
             if 'net income' in line:
                 numbers = self._extract_numbers(line)
                 if numbers and not financial_data['net_income']:
-                    financial_data['net_income'] = numbers[0]
+                    financial_data['net_income'] = max(numbers)
             
             if 'total assets' in line:
                 numbers = self._extract_numbers(line)
                 if numbers and not financial_data['total_assets']:
-                    financial_data['total_assets'] = numbers[0]
+                    financial_data['total_assets'] = max(numbers)
             
             if 'total liabilities' in line:
                 numbers = self._extract_numbers(line)
                 if numbers and not financial_data['total_liabilities']:
-                    financial_data['total_liabilities'] = numbers[0]
+                    financial_data['total_liabilities'] = max(numbers)
         
         return financial_data
     

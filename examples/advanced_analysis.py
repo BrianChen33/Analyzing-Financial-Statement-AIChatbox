@@ -69,9 +69,11 @@ def compare_companies(companies_data):
             print(f"  {name}: {ratios['roa']:.2f}%")
     
     # Identify best performer
-    best_margin = max(comparison.items(), 
-                     key=lambda x: x[1].get('profit_margin', 0))
-    print(f"\n🏆 Best Profit Margin: {best_margin[0]}")
+    profit_margins = {name: ratios.get('profit_margin', 0) 
+                     for name, ratios in comparison.items()}
+    if profit_margins:
+        best_performer = max(profit_margins, key=profit_margins.get)
+        print(f"\n🏆 Best Profit Margin: {best_performer}")
 
 
 def main():
