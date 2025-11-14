@@ -37,9 +37,9 @@ with st.sidebar:
     st.header("📤 Upload Financial Statement")
     
     uploaded_file = st.file_uploader(
-        "Choose a file (PDF or Image)",
-        type=['pdf', 'png', 'jpg', 'jpeg'],
-        help="Upload a financial statement in PDF or image format"
+        "Choose a file (PDF / Image / Excel / CSV / XBRL)",
+        type=['pdf', 'png', 'jpg', 'jpeg', 'xlsx', 'xls', 'csv', 'xbrl', 'xml'],
+        help="Upload a financial statement in PDF, image, spreadsheet, CSV, or XBRL format"
     )
     
     if uploaded_file is not None:
@@ -92,14 +92,10 @@ if not st.session_state.analyzed:
         st.markdown("""
         ### How it works:
         
-        1. **Upload** your financial statement (PDF or image)
-        2. **Analyze** to extract key information
-        3. **Review** insights and financial indicators
-        4. **Ask questions** about the document
-        
-        ### Supported formats:
-        - PDF documents
-        - Images (PNG, JPG, JPEG)
+        1. **Upload** financial statements (PDF / 图片 / Excel / CSV / XBRL)
+        2. **Analyze** 提取关键指标、趋势与风险
+        3. **Review** 仪表盘、同业对标、DuPont 分析
+        4. **Ask questions** 问答或导出 Markdown/文本报告
         """)
 else:
     # Display analysis results
@@ -196,6 +192,31 @@ else:
         if results.get('insights'):
             st.subheader("💡 AI-Generated Insights")
             st.markdown(results['insights'])
+        
+        if results.get('cash_flow'):
+            st.subheader("💧 Cash Flow Snapshot")
+            cf = results['cash_flow']
+            cf_cols = st.columns(4)
+            cf_cols[0].metric("Operating", f"{cf.get('operating', 0):,.2f}")
+            cf_cols[1].metric("Investing", f"{cf.get('investing', 0):,.2f}")
+            cf_cols[2].metric("Financing", f"{cf.get('financing', 0):,.2f}")
+            cf_cols[3].metric("Free Cash Flow", f"{cf.get('free_cash_flow', 0):,.2f}")
+        
+        if results.get('benchmark'):
+            st.subheader("🏁 Peer Benchmarking")
+            benchmark = results['benchmark']
+            st.markdown(f"**Industry:** {benchmark.get('industry', 'General')}")
+            if benchmark.get('summary'):
+                st.info(benchmark['summary'])
+            for metric in benchmark.get('metrics', []):
+                difference = metric.get('difference', 0)
+                st.write(
+                    f"- **{metric['metric'].replace('_', ' ').title()}** — "
+                    f"Company: {metric['company']} vs Benchmark: {metric['benchmark']} "
+                    f"({'+' if difference >= 0 else ''}{difference})"
+                )
+            for alert in benchmark.get('alerts', []):
+                st.warning(alert)
 
 # Footer
 st.markdown("---")
