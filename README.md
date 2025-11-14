@@ -1,119 +1,55 @@
-# 💰 Financial Statement AI Chatbox
+# Financial Statement AI Chatbox
 
-A comprehensive conversational AI agent for analyzing financial statements with advanced features including multi-format support, interactive dashboards, voice capabilities, and peer benchmarking.
+当前仓库仅保留运行所需的核心代码（src / frontend / tests 等），旧版文档与示例已清理。本 README 为最新使用说明。
 
-## 🌟 Key Features
+## 功能概览
+- **多格式解析**：自动识别 PDF / 图片 / Excel / CSV / XBRL。
+- **指标分析**：盈利、流动、杠杆、效率、现金流指标 + DuPont + 多期趋势。
+- **风险与同行对标**：内置 General / Technology / Retail / Manufacturing 基准，输出差距及告警。
+- **AI 能力（可选）**：若设置 `OPENAI_API_KEY`，可启用 GPT 洞察、Q&A、Vision 图片理解。
+- **前端体验**：Next.js + Material UI + ECharts，支持上传、仪表盘、问答、趋势视图及 Markdown/Text 报告导出。
 
-### Document Processing
-- **📤 Multi-Format Support**: PDF, Images (PNG/JPG), Excel, CSV, XBRL
-- **🔍 Advanced OCR**: Automatic table recognition and text extraction
-- **🖼️ Multimodal Analysis**: GPT-4 Vision for analyzing financial statement images
-
-### Financial Analysis
-- **📊 Comprehensive Indicators**: 
-  - Profitability: Profit Margin, ROA, ROE, Gross Margin
-  - Liquidity: Current Ratio, Quick Ratio, Cash Ratio
-  - Leverage: Debt-to-Asset, Debt-to-Equity, Interest Coverage
-  - Efficiency: Asset Turnover, Inventory Turnover
-  - Cash Flow: Operating Cash Flow, Free Cash Flow
-- **📈 DuPont Analysis**: Three-factor ROE decomposition
-- **📉 Trend Analysis**: Multi-period comparison and growth analysis
-- **⚠️ Risk Detection**: Automated identification of financial anomalies
-
-### User Interfaces
-- **🖥️ Next.js Web App**: Modern, responsive UI with Material-UI
-- **📱 Mobile-Friendly**: Responsive design for all devices
-- **🌓 Dark Mode**: Eye-friendly interface switching
-- **💬 Interactive Chat**: AI-powered Q&A about financial statements
-- **🎤 Voice Input**: Speech recognition for questions (Web Speech API)
-- **🔊 Voice Output**: Text-to-speech for responses
-
-### Advanced Features
-- **📊 Visual Dashboard**: Interactive charts with ECharts
-- **📈 Trend Visualization**: Line charts, bar charts, radar charts
-- **🔄 Session History**: Save and restore analysis sessions
-- **📥 Export Reports**: PDF and Markdown report generation
-- **🆚 Peer Benchmarking**: Compare with industry standards (coming soon)
-
-## 🏗️ Architecture
-
-### Frontend (Next.js + Material-UI)
-- **Technology Stack**: Next.js 14, TypeScript, Material-UI 5
-- **Components**: 
-  - FileUpload: Multi-format drag-and-drop upload
-  - FinancialDashboard: Key metrics and charts
-  - ChatInterface: AI-powered Q&A with voice support
-  - TrendAnalysis: Multi-period trends and DuPont analysis
-- **Features**: Dark mode, responsive design, session management
-
-### Backend (FastAPI)
-- **API Server**: RESTful API with FastAPI
-- **Document Parsing**: Enhanced parser for PDF, Excel, CSV, XBRL
-- **Financial Analysis**: Comprehensive ratio calculations and trend analysis
-- **LLM Integration**: GPT-4 for insights and conversational AI
-- **Data Processing**: Pandas for structured data, PyPDF2 for PDFs
-
-### System Workflow
-1. **Document Upload**: User uploads files via web interface
-2. **Format Detection**: Backend identifies file type and routes to appropriate parser
-3. **Data Extraction**: Extract financial data using appropriate method:
-   - PDFs: Text extraction with PyPDF2
-   - Images: GPT-4 Vision analysis
-   - Excel/CSV: Pandas dataframe processing
-   - XBRL: XML parsing with financial tag mapping
-4. **Financial Analysis**: Calculate ratios, identify trends, assess risks
-5. **AI Enhancement**: GPT-4 generates insights and answers questions
-6. **Visualization**: Display results in interactive dashboard with charts
-7. **Export**: Generate PDF/Markdown reports (coming soon)
-
-## 📋 Prerequisites
-
-- Python 3.8 or higher
-- OpenAI API key (for LLM features)
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Node.js 18 or higher
-- OpenAI API key (for LLM features)
-
-### Backend Setup
-
-1. **Clone and Install Python Dependencies**
-
+## 快速上手
 ```bash
-git clone https://github.com/BrianChen33/Analyzing-Financial-Statement-AIChatbox.git
-cd Analyzing-Financial-Statement-AIChatbox
+git clone <repo>
+cd Analyzing-Financial-Statement-AIChatbox-copilot-develop-conversational-ai-agent/Analyzing-Financial-Statement-AIChatbox-copilot-develop-conversational-ai-agent
+
+# Backend
 pip install -r requirements.txt
-```
+echo OPENAI_API_KEY=sk-xxxx > .env
+echo OPENAI_MODEL=gpt-4 >> .env
+python api_server.py   # 默认 http://localhost:8000
 
-2. **Configure Environment**
-
-Create `.env` file:
-```bash
-cp .env.example .env
-# Edit .env and add your OpenAI API key
-```
-
-3. **Start FastAPI Backend**
-
-```bash
-python api_server.py
-# API runs on http://localhost:8000
-```
-
-### Frontend Setup
-
-1. **Install Node Dependencies**
-
-```bash
+# Frontend
 cd frontend
 npm install
+echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
+npm run dev            # 默认 http://localhost:3000
+```
+打开浏览器上传报表，在上传前选择行业即可查看指标、风险、同行对标及 AI 洞察。未配置 OpenAI 时，仍可使用本地解析与指标功能。
+
+## 常用脚本
+- `python api_server.py`：FastAPI 后端
+- `streamlit run app.py`：可选的 Streamlit 旧界面
+- `npm run dev`：Next.js 前端
+- `pytest tests -q`：单元测试
+
+## 目录结构
+```
+├── api_server.py
+├── app.py
+├── requirements.txt
+├── src/            # 解析、指标、LLM、工具
+├── frontend/       # Next.js 应用
+└── tests/          # Pytest 覆盖
 ```
 
-2. **Configure Frontend**
+## 环境变量
+| 变量 | 说明 | 必需 |
+| ---- | ---- | ---- |
+| `OPENAI_API_KEY` | OpenAI 密钥，启用 AI 洞察/Q&A/Vision | 否 |
+| `OPENAI_MODEL` | GPT 模型名，默认 `gpt-4` | 否 |
+| `NEXT_PUBLIC_API_URL` | 前端访问的后端地址 | 是（前端运行时） |
 
 Create `.env.local`:
 ```bash
@@ -549,3 +485,7 @@ pytest tests/
 ---
 
 **注意**：本系统仅用于教育和分析目的。始终与专业会计师和财务顾问核实财务分析。
+## 提示
+- 上传至少两期数据才能查看趋势；若同行对标为空，请确认上传的报表包含收入/利润/资产字段并选择行业。
+- 语音输入依赖浏览器 Web Speech API，若网络受限可直接使用文本问答。
+- 如需进一步精简或部署说明，可继续告知，我会按需处理。
