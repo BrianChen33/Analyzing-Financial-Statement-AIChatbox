@@ -1,0 +1,61 @@
+{
+  "filename": "TechCorp Inc_2024.pdf",
+  "type": "pdf",
+  "financial_data": {
+    "company_name": "TechCorp Inc",
+    "period": "2024",
+    "revenue": 10000000,
+    "sales": 10000000,
+    "gross_profit": 4000000.0,
+    "operating_income": 1500000.0,
+    "net_income": 1000000.0,
+    "total_assets": 15000000.0,
+    "current_assets": 6000000.0,
+    "total_liabilities": 7500000.0,
+    "current_liabilities": 3000000.0,
+    "equity": 7500000.0,
+    "cash": 1800000.0,
+    "cash_equivalents": 1800000.0,
+    "inventory": 1800000.0,
+    "accounts_receivable": 2400000.0,
+    "operating_cash_flow": 1200000.0,
+    "investing_cash_flow": -1000000.0,
+    "financing_cash_flow": -500000.0,
+    "free_cash_flow": 200000.0,
+    "total_debt": 4500000.0,
+    "interest_expense": 225000.0
+  },
+  "ratios": {
+    "profit_margin": 10.0,
+    "gross_margin": 40.0,
+    "operating_margin": 15.0,
+    "roa": 6.666666666666667,
+    "roe": 13.333333333333334,
+    "current_ratio": 2.0,
+    "quick_ratio": 1.4,
+    "cash_ratio": 0.6,
+    "debt_to_asset_ratio": 50.0,
+    "equity_multiplier": 2.0,
+    "debt_to_equity_ratio": 100.0,
+    "interest_coverage": 6.666666666666667,
+    "asset_turnover": 0.6666666666666666,
+    "inventory_turnover": 3.611111111111111,
+    "cash_flow_to_revenue": 12.0,
+    "free_cash_flow_margin": 200000.0
+  },
+  "risks": [],
+  "dupont": {
+    "roe": 13.333333333333334,
+    "profit_margin": 10.0,
+    "asset_turnover": 0.6666666666666666,
+    "equity_multiplier": 2.0,
+    "components": {
+      "profit_margin_contribution": 13.33,
+      "asset_turnover_contribution": 13.33,
+      "equity_multiplier_contribution": 13.33
+    },
+    "calculated_roe": 13.33
+  },
+  "insights": "Based on the financial analysis, TechCorp Inc demonstrates strong financial performance with healthy profitability ratios and manageable leverage. The company shows good liquidity and efficient asset utilization.",
+  "trends": null
+}
