@@ -20,7 +20,7 @@ import {
 import { 
   CloudUpload, 
   Description,
-  Image,
+  Image as ImageIcon,
   TableChart
 } from '@mui/icons-material'
 import api from '@/services/api'
@@ -86,7 +86,7 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
   const getFileIcon = (filename: string) => {
     const ext = filename.split('.').pop()?.toLowerCase()
     if (ext === 'pdf') return <Description />
-    if (['png', 'jpg', 'jpeg'].includes(ext || '')) return <Image />
+    if (['png', 'jpg', 'jpeg'].includes(ext || '')) return <ImageIcon />
     if (['xls', 'xlsx', 'csv', 'xbrl', 'xml'].includes(ext || '')) return <TableChart />
     return <Description />
   }

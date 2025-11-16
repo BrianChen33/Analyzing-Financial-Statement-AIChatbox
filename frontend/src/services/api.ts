@@ -88,12 +88,37 @@ export interface AnalysisResponse {
 }
 
 export interface ChatRequest {
+  user_id: string
   question: string
   context: any
 }
 
 export interface ChatResponse {
   answer: string
+  entry?: ChatHistoryEntry
+}
+
+export interface AuthUser {
+  id: string
+  name: string
+  email: string
+}
+
+export interface AuthResponse {
+  user: AuthUser
+}
+
+export interface AuthCredentials {
+  email: string
+  password: string
+  name?: string
+}
+
+export interface ChatHistoryEntry {
+  id: string
+  question: string
+  answer: string
+  timestamp: string
 }
 
 // API 方法
@@ -130,6 +155,24 @@ export const api = {
   // 聊天问答
   chat: async (request: ChatRequest): Promise<ChatResponse> => {
     const response = await apiClient.post<ChatResponse>('/api/chat', request)
+    return response.data
+  },
+
+  // 用户注册
+  register: async (credentials: AuthCredentials): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>('/api/auth/register', credentials)
+    return response.data
+  },
+
+  // 用户登录
+  login: async (credentials: AuthCredentials): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>('/api/auth/login', credentials)
+    return response.data
+  },
+
+  // 获取聊天历史
+  getChatHistory: async (userId: string): Promise<{ history: ChatHistoryEntry[] }> => {
+    const response = await apiClient.get<{ history: ChatHistoryEntry[] }>(`/api/chat/history/${userId}`)
     return response.data
   },
 

@@ -4,13 +4,16 @@ FastAPI backend for financial statement analysis
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from typing import List, Optional
 from pydantic import BaseModel
 import os
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import json
+import threading
+import hashlib
+import uuid
 
 from src.parsers.enhanced_parser import EnhancedDocumentParser
 from src.analyzers.financial_analyzer import FinancialAnalyzer
@@ -33,6 +36,69 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Data persistence helpers
+DATA_DIR = Path("data")
+USERS_FILE = DATA_DIR / "users.json"
+CHAT_HISTORY_FILE = DATA_DIR / "chat_history.json"
+
+DATA_DIR.mkdir(exist_ok=True)
+
+_file_lock = threading.Lock()
+
+
+def _load_json(path: Path, default):
+    if not path.exists():
+        return default
+    try:
+        with path.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return default
+
+
+def _save_json(path: Path, payload):
+    with path.open('w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def _hash_password(raw: str) -> str:
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def _get_users():
+    return _load_json(USERS_FILE, {})
+
+
+def _get_user_by_id(user_id: str):
+    users = _get_users()
+    return users.get(user_id)
+
+
+def _get_user_by_email(email: str):
+    email_key = email.strip().lower()
+    users = _get_users()
+    for record in users.values():
+        if record.get('email') == email_key:
+            return record
+    return None
+
+
+def _append_chat_history(user_id: str, question: str, answer: str):
+    entry = {
+        "id": str(uuid.uuid4()),
+        "question": question,
+        "answer": answer,
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+    with _file_lock:
+        history = _load_json(CHAT_HISTORY_FILE, {})
+        user_history = history.get(user_id, [])
+        user_history.append(entry)
+        history[user_id] = user_history[-200:]
+        _save_json(CHAT_HISTORY_FILE, history)
+    return entry
+
+
 # Initialize components
 parser = EnhancedDocumentParser()
 analyzer = FinancialAnalyzer()
@@ -46,8 +112,20 @@ except Exception as e:
 
 
 class ChatRequest(BaseModel):
+    user_id: str
     question: str
     context: dict
+
+
+class AuthRequest(BaseModel):
+    name: Optional[str] = None
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 class AnalysisResponse(BaseModel):
@@ -69,6 +147,50 @@ async def health_check():
         "status": "healthy",
         "llm_available": llm is not None
     }
+
+
+@app.post("/api/auth/register")
+async def register_user(request: AuthRequest):
+    email = request.email.strip().lower()
+    if not email or not request.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    with _file_lock:
+        users = _load_json(USERS_FILE, {})
+        for record in users.values():
+            if record.get('email') == email:
+                raise HTTPException(status_code=400, detail="User already exists")
+
+        user_id = str(uuid.uuid4())
+        user_record = {
+            "id": user_id,
+            "name": request.name or email.split('@')[0].title(),
+            "email": email,
+            "password": _hash_password(request.password),
+            "created_at": datetime.utcnow().isoformat() + "Z"
+        }
+        users[user_id] = user_record
+        _save_json(USERS_FILE, users)
+
+    sanitized = {k: v for k, v in user_record.items() if k != 'password'}
+    return {"user": sanitized}
+
+
+@app.post("/api/auth/login")
+async def login_user(request: LoginRequest):
+    email = request.email.strip().lower()
+    if not email or not request.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    user_record = _get_user_by_email(email)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user_record.get('password') != _hash_password(request.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    sanitized = {k: v for k, v in user_record.items() if k != 'password'}
+    return {"user": sanitized}
 
 
 @app.post("/api/analyze")
@@ -191,11 +313,26 @@ async def chat(request: ChatRequest):
     if not llm:
         raise HTTPException(status_code=503, detail="LLM service not available")
     
+    user_record = _get_user_by_id(request.user_id)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+
     try:
         answer = llm.answer_question(request.question, request.context)
-        return {"answer": answer}
+        entry = _append_chat_history(request.user_id, request.question, answer)
+        return {"answer": answer, "entry": entry}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+@app.get("/api/chat/history/{user_id}")
+async def get_chat_history(user_id: str):
+    user_record = _get_user_by_id(user_id)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    history = _load_json(CHAT_HISTORY_FILE, {})
+    return {"history": history.get(user_id, [])}
 
 
 @app.post("/api/export")

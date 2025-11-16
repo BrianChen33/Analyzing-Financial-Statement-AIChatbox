@@ -6,7 +6,7 @@ interface TrendAnalysisProps {
 }
 
 export default function TrendAnalysis({ data }: TrendAnalysisProps) {
-  const { trends, historical_data, ratios, financial_data, dupont, cash_flow } = data
+  const { trends, historical_data, ratios, dupont, cash_flow } = data
 
   const resolvedHistorical = historical_data || []
   const hasMultiPeriodData = (trends?.periods?.length ?? 0) > 1 || resolvedHistorical.length > 1
