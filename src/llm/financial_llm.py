@@ -6,25 +6,26 @@ or Coze as a backend. It avoids hard-coded secrets and handles optional
 dependencies gracefully.
 """
 
+import importlib.util
 import os
 from typing import Dict, Any, List, Optional
 
 try:
-    from openai import OpenAI
+    _openai_module = importlib.import_module("openai")
+    OpenAI = getattr(_openai_module, "OpenAI", _openai_module)
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
 
 try:
-    from cozepy import (
-        COZE_CN_BASE_URL,
-        COZE_COM_BASE_URL,
-        ChatEventType,
-        Coze,
-        Message,
-        TokenAuth,
-    )
+    _coze_module = importlib.import_module("cozepy")
+    COZE_CN_BASE_URL = getattr(_coze_module, "COZE_CN_BASE_URL", None)
+    COZE_COM_BASE_URL = getattr(_coze_module, "COZE_COM_BASE_URL", None)
+    ChatEventType = getattr(_coze_module, "ChatEventType", None)
+    Coze = getattr(_coze_module, "Coze", None)
+    Message = getattr(_coze_module, "Message", None)
+    TokenAuth = getattr(_coze_module, "TokenAuth", None)
 
     COZE_AVAILABLE = True
 except Exception:
