@@ -56,6 +56,7 @@ class FinancialLLM:
         coze_bot_id: Optional[str] = None,
         coze_base_url: Optional[str] = None,
         coze_default_user_id: str = "111",
+        use_coze_fallback: bool = True,
     ):
         """Initialize the LLM client.
 
@@ -66,25 +67,43 @@ class FinancialLLM:
             coze_bot_id: Coze bot id (uses COZE_BOT_ID env var if not provided).
             coze_base_url: Override Coze API endpoint.
             coze_default_user_id: Default user id when talking to Coze bot.
+            use_coze_fallback: When provider=openai, allow Coze as a fallback if OpenAI fails.
         """
 
         self.provider = provider.lower()
         self.conversation_history: List[Dict[str, str]] = []
+        self.use_coze_fallback = use_coze_fallback
+
+        # Track OpenAI state to decide whether to fallback.
+        self.openai_enabled: bool = False
+
+        # Fallback clients are kept separate to avoid overwriting explicit Coze instances.
+        self.coze_fallback_client = None
+        self.coze_fallback_bot_id = None
+        self.coze_fallback_default_user_id = None
 
         if self.provider == "openai":
-            if not OPENAI_AVAILABLE:
-                raise ValueError(
-                    "OpenAI library not installed. Install with: pip install openai"
-                )
+            if OPENAI_AVAILABLE:
+                self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+                if self.api_key:
+                    self.client = OpenAI(api_key=self.api_key)
+                    self.model = os.getenv("OPENAI_MODEL", "gpt-4")
+                    self.openai_enabled = True
+                else:
+                    self.client = None
+                    self.model = None
+            else:
+                self.client = None
+                self.model = None
 
-            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-            if not self.api_key:
-                raise ValueError(
-                    "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
-                )
+            # Prepare Coze fallback if requested.
+            if self.use_coze_fallback:
+                self._init_coze_fallback(coze_token, coze_bot_id, coze_base_url, coze_default_user_id)
 
-            self.client = OpenAI(api_key=self.api_key)
-            self.model = os.getenv("OPENAI_MODEL", "gpt-4")
+            if not self.openai_enabled and not self._can_use_coze_fallback():
+                raise ValueError(
+                    "OpenAI is not available (missing package or API key) and no Coze fallback is configured."
+                )
 
         elif self.provider == "coze":
             if not COZE_AVAILABLE:
@@ -163,9 +182,6 @@ class FinancialLLM:
     ) -> str:
         """Generate comprehensive insights from financial analysis."""
 
-        if self.provider != "openai":
-            raise ValueError("Insight generation is only supported with the OpenAI provider.")
-
         prompt = (
             f"As a financial analyst, provide comprehensive insights based on this financial data:\n\n"
             f"Financial Metrics:\n{self._format_dict(financial_data)}\n\n"
@@ -176,7 +192,7 @@ class FinancialLLM:
             "Be specific, actionable, and professional."
         )
 
-        try:
+        def _openai_call():
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -187,14 +203,11 @@ class FinancialLLM:
                 max_tokens=1000,
             )
             return response.choices[0].message.content
-        except Exception as e:
-            return f"Error generating insights: {str(e)}"
+
+        return self._with_coze_fallback(prompt, _openai_call, error_prefix="Error generating insights")
 
     def answer_question(self, question: str, context: Dict[str, Any]) -> str:
         """Answer user questions about the financial statement."""
-
-        if self.provider != "openai":
-            raise ValueError("Q&A is only supported with the OpenAI provider.")
 
         context_str = (
             f"Financial Data Available:\n{self._format_dict(context.get('financial_data', {}))}\n\n"
@@ -209,7 +222,7 @@ class FinancialLLM:
         messages.extend(self.conversation_history[-5:])
         messages.append({"role": "user", "content": question})
 
-        try:
+        def _openai_call():
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -220,14 +233,15 @@ class FinancialLLM:
             self._update_history("user", question)
             self._update_history("assistant", answer)
             return answer
-        except Exception as e:
-            return f"Error answering question: {str(e)}"
+
+        return self._with_coze_fallback(
+            prompt=messages[-1]["content"],
+            openai_callable=_openai_call,
+            error_prefix="Error answering question",
+        )
 
     def generate_summary(self, document_text: str) -> str:
         """Generate a concise summary of the financial statement."""
-
-        if self.provider != "openai":
-            raise ValueError("Summaries are only supported with the OpenAI provider.")
 
         prompt = (
             "Summarize the following financial statement, highlighting:\n"
@@ -235,7 +249,7 @@ class FinancialLLM:
             f"Document:\n{document_text[:3000]}\n\nProvide a concise, structured summary."
         )
 
-        try:
+        def _openai_call():
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -246,8 +260,8 @@ class FinancialLLM:
                 max_tokens=500,
             )
             return response.choices[0].message.content
-        except Exception as e:
-            return f"Error generating summary: {str(e)}"
+
+        return self._with_coze_fallback(prompt, _openai_call, error_prefix="Error generating summary")
 
     def reset_conversation(self):
         """Clear conversation history."""
@@ -282,12 +296,84 @@ class FinancialLLM:
             raise ValueError("coze_stream_chat is only available when provider='coze'.")
 
         active_user_id = user_id or self.coze_default_user_id
+        return self._coze_chat_with_client(
+            prompt=prompt,
+            client=self.coze_client,
+            bot_id=self.coze_bot_id,
+            default_user_id=active_user_id,
+        )
+
+    def _with_coze_fallback(self, prompt: str, openai_callable, error_prefix: str) -> str:
+        """Try OpenAI first; on failure (or when unavailable) fall back to Coze if configured."""
+
+        # If the active provider is Coze, just use Coze directly.
+        if self.provider == "coze":
+            return self.coze_stream_chat(prompt)
+
+        # OpenAI path with optional fallback.
+        if self.provider == "openai":
+            if self.openai_enabled:
+                try:
+                    return openai_callable()
+                except Exception as e:
+                    if self._can_use_coze_fallback():
+                        return self._coze_fallback_response(prompt, fallback_error=e)
+                    return f"{error_prefix}: {str(e)}"
+
+            # OpenAI not initialized but fallback allowed.
+            if self._can_use_coze_fallback():
+                return self._coze_fallback_response(prompt, fallback_error="OpenAI unavailable")
+
+            return f"{error_prefix}: OpenAI unavailable and Coze fallback is not configured."
+
+        raise ValueError("Unsupported provider. Use 'openai' or 'coze'.")
+
+    def _coze_fallback_response(self, prompt: str, fallback_error: Any) -> str:
+        """Format a Coze fallback response including the original OpenAI error."""
+        reply = self._coze_chat_with_client(
+            prompt=prompt,
+            client=self.coze_fallback_client,
+            bot_id=self.coze_fallback_bot_id,
+            default_user_id=self.coze_fallback_default_user_id,
+        )
+        return f"[OpenAI fallback due to: {fallback_error}] {reply}"
+
+    def _init_coze_fallback(
+        self,
+        coze_token: Optional[str],
+        coze_bot_id: Optional[str],
+        coze_base_url: Optional[str],
+        coze_default_user_id: str,
+    ) -> None:
+        """Initialize Coze fallback client if credentials are present."""
+        if not COZE_AVAILABLE:
+            return
+
+        token = coze_token or os.getenv("COZE_API_TOKEN")
+        bot_id = coze_bot_id or os.getenv("COZE_BOT_ID")
+        if not token or not bot_id:
+            return
+
+        base_from_region = (
+            COZE_CN_BASE_URL if os.getenv("COZE_REGION", "cn").lower() == "cn" else COZE_COM_BASE_URL
+        )
+        base_url = coze_base_url or base_from_region
+
+        self.coze_fallback_client = Coze(auth=TokenAuth(token=token), base_url=base_url)
+        self.coze_fallback_bot_id = bot_id
+        self.coze_fallback_default_user_id = coze_default_user_id or os.getenv("COZE_DEFAULT_USER_ID", "111")
+
+    def _can_use_coze_fallback(self) -> bool:
+        """Check if Coze fallback client is ready."""
+        return self.use_coze_fallback and self.coze_fallback_client is not None and self.coze_fallback_bot_id is not None
+
+    def _coze_chat_with_client(self, prompt: str, client, bot_id: str, default_user_id: str) -> str:
+        """Shared Coze chat streaming logic for primary and fallback clients."""
         response_chunks: List[str] = []
         token_usage: Optional[int] = None
-
-        for event in self.coze_client.chat.stream(
-            bot_id=self.coze_bot_id,
-            user_id=active_user_id,
+        for event in client.chat.stream(
+            bot_id=bot_id,
+            user_id=default_user_id,
             additional_messages=[Message.build_user_question_text(prompt)],
         ):
             if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
