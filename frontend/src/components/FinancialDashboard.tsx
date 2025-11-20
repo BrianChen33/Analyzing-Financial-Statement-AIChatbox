@@ -1,13 +1,42 @@
-import { Grid, Paper, Typography, Box, Card, CardContent, Chip } from '@mui/material'
-import { TrendingUp, TrendingDown, Warning } from '@mui/icons-material'
+import { Box, Card, CardContent, Chip, Grid, List, ListItem, ListItemIcon, ListItemText, Paper, Stack, Typography } from '@mui/material'
+import { TrendingUp, TrendingDown, Warning, InfoOutlined } from '@mui/icons-material'
 import ReactECharts from 'echarts-for-react'
+import { normalizeToNumber } from '@/utils/number'
+import { filterDisplayableRisks } from '@/utils/risk'
 
 interface FinancialDashboardProps {
   data: any
 }
 
+const formatPercentValue = (value: any): string => {
+  const num = normalizeToNumber(value)
+  return num === null ? 'N/A' : `${num.toFixed(2)}%`
+}
+
+const formatRatioValue = (value: any): string => {
+  const num = normalizeToNumber(value)
+  return num === null ? 'N/A' : num.toFixed(2)
+}
+
+const asChartSeries = (values?: any[]) => (values || []).map((value) => normalizeToNumber(value) ?? 0)
+
 export default function FinancialDashboard({ data }: FinancialDashboardProps) {
-  const { financial_data, ratios, risks, trends, benchmark, industry } = data
+  const metrics = data.financial_data || {}
+  const ratios = data.ratios || {}
+  const risks = filterDisplayableRisks(data.risks)
+  const trends = data.trends || {}
+  const benchmark = data.benchmark
+  const industry = data.industry
+  const metadata = data.llm_metadata || {}
+  const llmNotes: string[] = Array.isArray(data.llm_notes) ? data.llm_notes : []
+  const revenueGrowthRate = normalizeToNumber(trends?.revenue_growth_rate)
+  const profitGrowthRate = normalizeToNumber(trends?.profit_growth_rate)
+
+  const revenueValue = normalizeToNumber(metrics.revenue ?? metrics.sales)
+  const netIncomeValue = normalizeToNumber(metrics.net_income)
+  const totalAssetsValue = normalizeToNumber(metrics.total_assets)
+  const equityValue = normalizeToNumber(metrics.equity)
+  const currentRatioValue = normalizeToNumber(ratios.current_ratio)
 
   const getRevenueChartOption = () => ({
     title: { text: 'Revenue Trend' },
@@ -15,7 +44,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
     xAxis: { type: 'category', data: trends?.periods || [] },
     yAxis: { type: 'value' },
     series: [{
-      data: trends?.revenue_values || [],
+      data: asChartSeries(trends?.revenue_values),
       type: 'line',
       smooth: true,
       areaStyle: { opacity: 0.3 }
@@ -36,12 +65,12 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
         name: 'Value',
         type: 'bar',
         data: [
-          ratios?.profit_margin || 0,
-          ratios?.roa || 0,
-          ratios?.roe || 0,
-          (ratios?.current_ratio || 0) * 10, // Scale for visibility
-          (ratios?.quick_ratio || 0) * 10,
-          ratios?.debt_to_asset_ratio || 0
+          normalizeToNumber(ratios?.profit_margin) ?? 0,
+          normalizeToNumber(ratios?.roa) ?? 0,
+          normalizeToNumber(ratios?.roe) ?? 0,
+          (normalizeToNumber(ratios?.current_ratio) ?? 0) * 10, // Scale for visibility
+          (normalizeToNumber(ratios?.quick_ratio) ?? 0) * 10,
+          normalizeToNumber(ratios?.debt_to_asset_ratio) ?? 0
         ],
         itemStyle: {
           color: (params: any) => {
@@ -61,9 +90,9 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
     series: [{
       type: 'bar',
       data: [
-        ratios?.gross_margin || 0,
-        ratios?.operating_margin || 0,
-        ratios?.profit_margin || 0
+        normalizeToNumber(ratios?.gross_margin) ?? 0,
+        normalizeToNumber(ratios?.operating_margin) ?? 0,
+        normalizeToNumber(ratios?.profit_margin) ?? 0
       ],
       itemStyle: {
         color: (params: any) => {
@@ -83,16 +112,17 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
   }
 
   const formatBenchmarkValue = (metric: string, value?: number) => {
-    if (value === undefined || value === null) return 'N/A'
+    const num = normalizeToNumber(value)
+    if (num === null) return 'N/A'
     const percentMetrics = ['margin', 'roa', 'roe', 'debt']
     const ratioMetrics = ['ratio', 'turnover']
     if (percentMetrics.some((token) => metric.includes(token))) {
-      return `${value.toFixed(2)}%`
+      return `${num.toFixed(2)}%`
     }
     if (ratioMetrics.some((token) => metric.includes(token))) {
-      return value.toFixed(2)
+      return num.toFixed(2)
     }
-    return value.toFixed(2)
+    return num.toFixed(2)
   }
 
   return (
@@ -110,12 +140,12 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Revenue
               </Typography>
               <Typography variant="h5">
-                {formatCurrency(financial_data?.revenue || 0)}
+                {revenueValue === null ? 'N/A' : formatCurrency(revenueValue)}
               </Typography>
               {trends?.revenue_trend === 'increasing' && (
                 <Chip 
                   icon={<TrendingUp />} 
-                  label={`+${trends?.revenue_growth_rate?.toFixed(1)}%`} 
+                  label={revenueGrowthRate === null ? 'N/A' : `+${revenueGrowthRate.toFixed(1)}%`} 
                   color="success" 
                   size="small" 
                   sx={{ mt: 1 }}
@@ -124,7 +154,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
               {trends?.revenue_trend === 'decreasing' && (
                 <Chip 
                   icon={<TrendingDown />} 
-                  label={`${trends?.revenue_growth_rate?.toFixed(1)}%`} 
+                  label={revenueGrowthRate === null ? 'N/A' : `${revenueGrowthRate.toFixed(1)}%`} 
                   color="error" 
                   size="small" 
                   sx={{ mt: 1 }}
@@ -141,12 +171,12 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Net Income
               </Typography>
               <Typography variant="h5">
-                {formatCurrency(financial_data?.net_income || 0)}
+                {netIncomeValue === null ? 'N/A' : formatCurrency(netIncomeValue)}
               </Typography>
               {trends?.profit_trend === 'increasing' && (
                 <Chip 
                   icon={<TrendingUp />} 
-                  label={`+${trends?.profit_growth_rate?.toFixed(1)}%`} 
+                  label={profitGrowthRate === null ? 'N/A' : `+${profitGrowthRate.toFixed(1)}%`} 
                   color="success" 
                   size="small" 
                   sx={{ mt: 1 }}
@@ -155,7 +185,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
               {trends?.profit_trend === 'decreasing' && (
                 <Chip 
                   icon={<TrendingDown />} 
-                  label={`${trends?.profit_growth_rate?.toFixed(1)}%`} 
+                  label={profitGrowthRate === null ? 'N/A' : `${profitGrowthRate.toFixed(1)}%`} 
                   color="error" 
                   size="small" 
                   sx={{ mt: 1 }}
@@ -172,7 +202,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Total Assets
               </Typography>
               <Typography variant="h5">
-                {formatCurrency(financial_data?.total_assets || 0)}
+                {totalAssetsValue === null ? 'N/A' : formatCurrency(totalAssetsValue)}
               </Typography>
             </CardContent>
           </Card>
@@ -185,7 +215,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Equity
               </Typography>
               <Typography variant="h5">
-                {formatCurrency(financial_data?.equity || 0)}
+                {equityValue === null ? 'N/A' : formatCurrency(equityValue)}
               </Typography>
             </CardContent>
           </Card>
@@ -198,7 +228,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Profit Margin
               </Typography>
               <Typography variant="h5">
-                {ratios?.profit_margin?.toFixed(2) || 'N/A'}%
+                {formatPercentValue(ratios?.profit_margin)}
               </Typography>
             </CardContent>
           </Card>
@@ -211,7 +241,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 ROA
               </Typography>
               <Typography variant="h5">
-                {ratios?.roa?.toFixed(2) || 'N/A'}%
+                {formatPercentValue(ratios?.roa)}
               </Typography>
             </CardContent>
           </Card>
@@ -224,7 +254,7 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 ROE
               </Typography>
               <Typography variant="h5">
-                {ratios?.roe?.toFixed(2) || 'N/A'}%
+                {formatPercentValue(ratios?.roe)}
               </Typography>
             </CardContent>
           </Card>
@@ -237,12 +267,38 @@ export default function FinancialDashboard({ data }: FinancialDashboardProps) {
                 Current Ratio
               </Typography>
               <Typography variant="h5">
-                {ratios?.current_ratio?.toFixed(2) || 'N/A'}
+                {formatRatioValue(currentRatioValue)}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      {(metadata.entity || metadata.period_label || metadata.currency || llmNotes.length > 0) && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Data provenance
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" sx={{ mb: llmNotes.length ? 1.5 : 0 }}>
+            {metadata.entity && <Chip label={`Entity: ${metadata.entity}`} />}
+            {(metadata.period_label || data.period) && <Chip label={`Period: ${metadata.period_label || data.period}`} />}
+            {metadata.fiscal_year && <Chip label={`Fiscal year: ${metadata.fiscal_year}`} />}
+            <Chip label={`Currency: ${metadata.currency || 'USD'}`} />
+          </Stack>
+          {llmNotes.length > 0 && (
+            <List dense>
+              {llmNotes.map((note, index) => (
+                <ListItem key={index} sx={{ py: 0.5 }}>
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <InfoOutlined fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary={note} />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Paper>
+      )}
 
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

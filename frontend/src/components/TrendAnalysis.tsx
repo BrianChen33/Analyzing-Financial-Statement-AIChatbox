@@ -1,5 +1,6 @@
-import { Grid, Paper, Typography, Box } from '@mui/material'
+import { Grid, Paper, Typography, Box, Chip, Stack } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
+import { normalizeToNumber } from '@/utils/number'
 
 interface TrendAnalysisProps {
   data: any
@@ -7,15 +8,25 @@ interface TrendAnalysisProps {
 
 export default function TrendAnalysis({ data }: TrendAnalysisProps) {
   const { trends, historical_data, ratios, dupont, cash_flow } = data
+  const metadata = data.llm_metadata || {}
+  const revenueGrowthRate = normalizeToNumber(trends?.revenue_growth_rate)
+  const profitGrowthRate = normalizeToNumber(trends?.profit_growth_rate)
 
   const resolvedHistorical = historical_data || []
   const hasMultiPeriodData = (trends?.periods?.length ?? 0) > 1 || resolvedHistorical.length > 1
 
   const getMultiPeriodChartOption = () => {
     const periods = trends?.periods || resolvedHistorical.map((entry: any) => entry.period) || ['Period 1']
-    const revenueValues = trends?.revenue_values || resolvedHistorical.map((entry: any) => entry.revenue || entry.sales || 0)
-    const netIncomeValues = trends?.net_income_values || resolvedHistorical.map((entry: any) => entry.net_income || 0)
-    const assetValues = trends?.total_assets_values || resolvedHistorical.map((entry: any) => entry.total_assets || 0)
+    const normalizeValue = (value: any) => normalizeToNumber(value) ?? 0
+    const normalizeSeries = (values: any[], fallbackKey: string) => {
+      if (values && values.length) {
+        return values.map(normalizeValue)
+      }
+      return resolvedHistorical.map((entry: any) => normalizeValue(entry[fallbackKey] ?? entry[fallbackKey === 'revenue' ? 'sales' : fallbackKey]))
+    }
+    const revenueValues = normalizeSeries(trends?.revenue_values, 'revenue')
+    const netIncomeValues = normalizeSeries(trends?.net_income_values, 'net_income')
+    const assetValues = normalizeSeries(trends?.total_assets_values, 'total_assets')
     
     return {
       title: { text: 'Multi-Period Financial Analysis' },
@@ -106,10 +117,10 @@ export default function TrendAnalysis({ data }: TrendAnalysisProps) {
       series: [{
         type: 'bar',
         data: [
-          ratios.profit_margin || 0,
-          (ratios.asset_turnover || 0) * 100, // Scale for visibility
-          (ratios.equity_multiplier || 0) * 10, // Scale for visibility
-          ratios.roe || 0
+          normalizeToNumber(ratios.profit_margin) ?? 0,
+          (normalizeToNumber(ratios.asset_turnover) ?? 0) * 100, // Scale for visibility
+          (normalizeToNumber(ratios.equity_multiplier) ?? 0) * 10, // Scale for visibility
+          normalizeToNumber(ratios.roe) ?? 0
         ],
         itemStyle: {
           color: (params: any) => {
@@ -140,9 +151,9 @@ export default function TrendAnalysis({ data }: TrendAnalysisProps) {
     series: [{
       type: 'bar',
       data: [
-        cash_flow?.operating || 0,
-        cash_flow?.investing || 0,
-        cash_flow?.financing || 0
+        normalizeToNumber(cash_flow?.operating) ?? 0,
+        normalizeToNumber(cash_flow?.investing) ?? 0,
+        normalizeToNumber(cash_flow?.financing) ?? 0
       ],
       itemStyle: {
         color: (params: any) => {
@@ -157,6 +168,13 @@ export default function TrendAnalysis({ data }: TrendAnalysisProps) {
       <Typography variant="h4" gutterBottom>
         Trend Analysis
       </Typography>
+      {(metadata.entity || metadata.period_label) && (
+        <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
+          {metadata.entity && <Chip label={`Entity: ${metadata.entity}`} />}
+          {metadata.period_label && <Chip label={`Latest Period: ${metadata.period_label}`} />}
+          {metadata.fiscal_year && <Chip label={`Fiscal Year: ${metadata.fiscal_year}`} />}
+        </Stack>
+      )}
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
@@ -166,7 +184,7 @@ export default function TrendAnalysis({ data }: TrendAnalysisProps) {
             ) : (
               <Box sx={{ p: 3 }}>
                 <Typography variant="body1">
-                  上传至少两份不同期间的报表（例如 FY2022 与 FY2023），即可解锁多期趋势分析。
+                  Upload at least two reporting periods (for example FY2022 and FY2023) to unlock the multi-period trend analysis.
                 </Typography>
               </Box>
             )}
@@ -193,13 +211,13 @@ export default function TrendAnalysis({ data }: TrendAnalysisProps) {
             {trends?.revenue_trend && (
               <Typography variant="body1" paragraph>
                 <strong>Revenue Trend:</strong> {trends.revenue_trend} 
-                {trends.revenue_growth_rate && ` (${trends.revenue_growth_rate.toFixed(2)}% growth)`}
+                {revenueGrowthRate !== null && ` (${revenueGrowthRate.toFixed(2)}% growth)`}
               </Typography>
             )}
             {trends?.profit_trend && (
               <Typography variant="body1" paragraph>
                 <strong>Profit Trend:</strong> {trends.profit_trend}
-                {trends.profit_growth_rate && ` (${trends.profit_growth_rate.toFixed(2)}% growth)`}
+                {profitGrowthRate !== null && ` (${profitGrowthRate.toFixed(2)}% growth)`}
               </Typography>
             )}
           </Paper>

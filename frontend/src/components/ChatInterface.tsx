@@ -118,7 +118,7 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
     }
   }
 
-  // 初始化语音识别
+  // Initialize speech recognition once the browser APIs are available
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -143,25 +143,25 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
           console.error('Speech recognition error:', event.error)
           setIsRecording(false)
           
-          let errorMessage = '语音识别错误: '
+          let errorMessage = 'Speech recognition error: '
           switch (event.error) {
             case 'not-allowed':
-              errorMessage = '麦克风权限被拒绝。请在浏览器设置中允许麦克风权限。'
+              errorMessage = 'Microphone access denied. Please allow microphone permissions in your browser settings.'
               break
             case 'network':
-              errorMessage = '网络连接错误。Web Speech API需要网络连接才能工作。\n\n解决方案：\n1. 检查网络连接\n2. 确保可以访问Google服务（语音识别使用Google服务）\n3. 如果在中国，可能需要VPN或使用其他语音输入方式'
+              errorMessage = 'Network issue detected. The Web Speech API needs a stable internet connection.\n\nTroubleshooting steps:\n1. Check your connection\n2. Ensure Google services are reachable\n3. If the network is restricted, consider a VPN or fall back to manual input'
               break
             case 'no-speech':
-              errorMessage = '未检测到语音。请确保麦克风正常工作并清晰说话。'
+              errorMessage = 'No speech detected. Please make sure the microphone is working and speak clearly.'
               break
             case 'audio-capture':
-              errorMessage = '无法捕获音频。请检查麦克风是否正常工作。'
+              errorMessage = 'Audio capture failed. Verify that your microphone hardware is functioning.'
               break
             case 'aborted':
-              errorMessage = '语音识别被中止。'
+              errorMessage = 'Speech recognition stopped unexpectedly.'
               break
             default:
-              errorMessage = `语音识别错误: ${event.error}`
+              errorMessage = `Speech recognition error: ${event.error}`
           }
           
           alert(errorMessage)
@@ -203,9 +203,8 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
       recognitionRef.current.stop()
       setIsRecording(false)
     } else {
-      // 检查网络连接
       if (!navigator.onLine) {
-        alert('网络连接不可用。语音识别需要网络连接。请检查网络后重试。')
+        alert('Network connection unavailable. Voice input requires an active internet connection. Please reconnect and try again.')
         return
       }
       
@@ -215,11 +214,10 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
         console.error('Failed to start recognition:', error)
         setIsRecording(false)
         
-        // 提供更友好的错误提示
         if (error.message && error.message.includes('network')) {
-          alert('网络连接错误。\n\n语音识别需要网络连接才能工作。\n\n如果持续出现此错误，请：\n1. 检查网络连接\n2. 确保可以访问Google服务\n3. 或使用手动输入代替语音输入')
+          alert('Network issue detected. Voice input depends on Google services.\n\nIf this keeps happening:\n1. Verify your internet connection\n2. Confirm Google services are reachable\n3. Use manual typing as a fallback if needed')
         } else {
-          alert(`启动语音识别失败: ${error.message || '未知错误'}\n\n请尝试手动输入问题。`)
+          alert(`Failed to start speech recognition: ${error.message || 'Unknown error'}\n\nPlease type your question manually instead.`)
         }
       }
     }
@@ -230,10 +228,10 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
       return
     }
     
-    // 停止当前播放
+    // Stop any ongoing playback before starting a new utterance
     synthesisRef.current.cancel()
     
-    // 提取纯文本（去除markdown格式）
+    // Strip lightweight markdown markers for clearer speech
     const plainText = text.replace(/[#*`_~\[\]()]/g, '').replace(/\n/g, ' ')
     
     const utterance = new SpeechSynthesisUtterance(plainText)
@@ -357,7 +355,7 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
             </Alert>
           )}
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-            <Tooltip title={isRecording ? 'Stop recording' : 'Voice input (需要网络连接)'}>
+            <Tooltip title={isRecording ? 'Stop recording' : 'Voice input (requires internet connection)'}>
               <span>
                 <IconButton 
                   color={isRecording ? 'error' : 'default'}
@@ -375,9 +373,9 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={isRecording ? 'Listening...' : 'Ask a question about the financial statement... (或点击🎤使用语音输入)'}
+              placeholder={isRecording ? 'Listening...' : 'Ask a question about the financial statement... (or tap 🎤 for voice input)'}
               disabled={loading || isRecording || !canChat}
-              helperText={canChat ? (isRecording ? 'Speak your question...' : '提示：如果语音输入无法使用，请直接手动输入问题') : '请先完成一次财务报表分析'}
+              helperText={canChat ? (isRecording ? 'Speak your question...' : 'Tip: If voice input fails, please type your question manually.') : 'Please run at least one financial analysis first.'}
             />
             <IconButton 
               color="primary" 
@@ -389,7 +387,7 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
           </Box>
           <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="caption" sx={{ width: '100%', mb: 0.5 }}>
-              常用问题：
+              Quick prompts:
             </Typography>
             {[
               'What is the profit margin?',

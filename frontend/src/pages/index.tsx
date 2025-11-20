@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, MouseEvent } from 'react'
 import {
   Box,
   Grid,
@@ -17,7 +17,9 @@ import {
   Alert,
   Tabs,
   Tab,
-  TextField
+  TextField,
+  Menu,
+  MenuItem
 } from '@mui/material'
 import {
   Brightness4,
@@ -27,16 +29,16 @@ import {
   CloudUploadRounded,
   AnalyticsRounded,
   QuestionAnswerRounded,
-  TimelineRounded,
   LogoutRounded,
   CheckCircleOutline
 } from '@mui/icons-material'
 import FileUpload from '@/components/FileUpload'
 import FinancialDashboard from '@/components/FinancialDashboard'
 import ChatInterface from '@/components/ChatInterface'
-import TrendAnalysis from '@/components/TrendAnalysis'
 import api from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
+import { normalizeToNumber } from '@/utils/number'
+import { filterDisplayableRisks } from '@/utils/risk'
 
 interface HomeProps {
   darkMode: boolean
@@ -47,8 +49,7 @@ const NAV_ITEMS = [
   { key: 'overview', label: 'Home', icon: <HomeRounded fontSize="small" /> },
   { key: 'upload', label: 'Upload', icon: <CloudUploadRounded fontSize="small" /> },
   { key: 'dashboard', label: 'Dashboard', icon: <AnalyticsRounded fontSize="small" /> },
-  { key: 'qa', label: 'Q&A', icon: <QuestionAnswerRounded fontSize="small" /> },
-  { key: 'trends', label: 'Trends', icon: <TimelineRounded fontSize="small" /> }
+  { key: 'qa', label: 'Q&A', icon: <QuestionAnswerRounded fontSize="small" /> }
 ]
 
 export default function Home({ darkMode, setDarkMode }: HomeProps) {
@@ -57,6 +58,7 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
   const { user, initializing, logout } = useAuth()
   const [activeNav, setActiveNav] = useState<string>('overview')
   const [analysisData, setAnalysisData] = useState<any>(null)
+  const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null)
 
   const handleAnalysisComplete = (data: any) => {
     setAnalysisData(data)
@@ -68,7 +70,6 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
       alert('No analysis data available to export')
       return
     }
-
     try {
       const result = await api.exportReport(analysisData, format)
       const blob = new Blob([result.content], {
@@ -85,6 +86,15 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
     } catch (error: any) {
       alert(`Export failed: ${error.message}`)
     }
+  }
+  
+  const handleAvatarMenuClose = () => setAvatarMenuAnchor(null)
+  const handleAvatarClick = (event: MouseEvent<HTMLButtonElement>) => {
+    setAvatarMenuAnchor(event.currentTarget)
+  }
+  const handleLogout = () => {
+    handleAvatarMenuClose()
+    logout()
   }
 
   if (initializing) {
@@ -116,15 +126,6 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
         )
       case 'qa':
         return <ChatInterface analysisData={analysisData} user={user} />
-      case 'trends':
-        return analysisData ? <TrendAnalysis data={analysisData} /> : (
-          <EmptyState
-            title="Trend analysis requires at least one upload"
-            description="Provide multiple periods (e.g., FY22 & FY23) to unlock revenue and profitability trends."
-            actionLabel="Upload statements"
-            onAction={() => setActiveNav('upload')}
-          />
-        )
       default:
         return null
     }
@@ -147,10 +148,10 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
         >
           <Box>
             <Typography variant="h5" fontWeight={700} gutterBottom>
-              Acme Finance
+              AI Finance
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Intelligent financial analysis workspace
+              Intelligent financial analysis workspace - by Group 17
             </Typography>
           </Box>
           <Stack spacing={1.5} sx={{ mt: 4 }}>
@@ -197,7 +198,11 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
             alignItems: { xs: 'flex-start', sm: 'center' },
             flexDirection: { xs: 'column', sm: 'row' },
             justifyContent: 'space-between',
-            gap: 2
+            gap: 2,
+            position: 'sticky',
+            top: 0,
+            zIndex: theme.zIndex.appBar,
+            bgcolor: 'background.paper'
           }}
         >
           <Box>
@@ -222,9 +227,23 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
             <IconButton onClick={() => setDarkMode(!darkMode)}>
               {darkMode ? <Brightness7 /> : <Brightness4 />}
             </IconButton>
-            <Avatar sx={{ bgcolor: 'primary.main' }}>
-              {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </Avatar>
+            <IconButton onClick={handleAvatarClick} sx={{ p: 0 }}>
+              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </Avatar>
+            </IconButton>
+            <Menu
+              anchorEl={avatarMenuAnchor}
+              open={Boolean(avatarMenuAnchor)}
+              onClose={handleAvatarMenuClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              <MenuItem onClick={handleLogout}>
+                <LogoutRounded fontSize="small" sx={{ mr: 1 }} />
+                Sign out
+              </MenuItem>
+            </Menu>
           </Stack>
         </Paper>
 
@@ -233,7 +252,17 @@ export default function Home({ darkMode, setDarkMode }: HomeProps) {
         </Box>
 
         {!isDesktop && (
-          <Paper elevation={3} sx={{ position: 'sticky', bottom: 0 }}>
+          <Paper
+            elevation={3}
+            sx={{
+              position: 'sticky',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: theme.zIndex.appBar,
+              bgcolor: 'background.paper'
+            }}
+          >
             <BottomNavigation
               value={activeNav}
               onChange={(_, value) => setActiveNav(value)}
@@ -305,33 +334,52 @@ function OverviewSection({ analysisData, onGoUpload }: OverviewProps) {
     )
   }
 
+  const formatCurrencyValue = (value: any) => {
+    const num = normalizeToNumber(value)
+    if (num === null) return 'N/A'
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(num)
+  }
+
+  const formatPercentValue = (value: any) => {
+    const num = normalizeToNumber(value)
+    return num === null ? 'N/A' : `${num.toFixed(2)}%`
+  }
+
+  const formatTrend = (value: any) => {
+    const num = normalizeToNumber(value)
+    return num === null ? undefined : `${num.toFixed(1)}%`
+  }
+
   const financial = analysisData.financial_data || {}
   const ratios = analysisData.ratios || {}
   const trends = analysisData.trends || {}
+  const metadata = analysisData.llm_metadata || {}
+  const llmNotes: string[] = Array.isArray(analysisData.llm_notes) ? analysisData.llm_notes : []
+  const risks = filterDisplayableRisks(analysisData.risks)
 
   const highlights = [
     {
       label: 'Revenue',
-      value: formatCurrency(financial.revenue),
+      value: formatCurrencyValue(financial.revenue ?? financial.sales),
       helper: trends.revenue_trend ? `Revenue is ${trends.revenue_trend}` : undefined,
-      trend: trends.revenue_growth_rate ? `${trends.revenue_growth_rate.toFixed(1)}%` : undefined,
+      trend: formatTrend(trends.revenue_growth_rate),
       positive: (trends.revenue_growth_rate || 0) >= 0
     },
     {
       label: 'Net income',
-      value: formatCurrency(financial.net_income),
+      value: formatCurrencyValue(financial.net_income),
       helper: trends.profit_trend ? `Profit is ${trends.profit_trend}` : undefined,
-      trend: trends.profit_growth_rate ? `${trends.profit_growth_rate.toFixed(1)}%` : undefined,
+      trend: formatTrend(trends.profit_growth_rate),
       positive: (trends.profit_growth_rate || 0) >= 0
     },
     {
       label: 'Profit margin',
-      value: formatPercent(ratios.profit_margin),
+      value: formatPercentValue(ratios.profit_margin),
       helper: 'Net profit / Revenue'
     },
     {
       label: 'ROE',
-      value: formatPercent(ratios.roe),
+      value: formatPercentValue(ratios.roe),
       helper: 'Return on equity'
     }
   ]
@@ -349,6 +397,24 @@ function OverviewSection({ analysisData, onGoUpload }: OverviewProps) {
             </Grid>
           ))}
         </Grid>
+        {(metadata.entity || metadata.period_label || llmNotes.length > 0) && (
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {metadata.entity && <Chip label={`Entity: ${metadata.entity}`} />}
+              {(metadata.period_label || analysisData.period) && <Chip label={`Period: ${metadata.period_label || analysisData.period}`} />}
+              {metadata.currency && <Chip label={`Currency: ${metadata.currency}`} />}
+            </Stack>
+            {llmNotes.length > 0 && (
+              <Stack spacing={0.5}>
+                {llmNotes.map((note, idx) => (
+                  <Typography key={idx} variant="body2" color="text.secondary">
+                    • {note}
+                  </Typography>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        )}
       </Paper>
 
       {analysisData.benchmark && (
@@ -362,18 +428,18 @@ function OverviewSection({ analysisData, onGoUpload }: OverviewProps) {
           <Stack direction="row" spacing={1} flexWrap="wrap">
             <Chip label={`Industry: ${analysisData.industry || analysisData.benchmark.industry || 'General'}`} />
             <Chip label={`Files analyzed: ${analysisData.files_analyzed || 1}`} />
-            <Chip label={`Risks detected: ${analysisData.risks?.length || 0}`} />
+            <Chip label={`Risks detected: ${risks.length}`} />
           </Stack>
         </Paper>
       )}
 
-      {analysisData.risks && analysisData.risks.length > 0 && (
+      {risks.length > 0 && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
             Risk highlights
           </Typography>
           <Grid container spacing={2}>
-            {analysisData.risks.slice(0, 3).map((risk: any, index: number) => (
+            {risks.slice(0, 3).map((risk: any, index: number) => (
               <Grid item xs={12} md={4} key={index}>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
@@ -429,24 +495,6 @@ function StatCard({ label, value, helper, trend, positive }: StatCardProps) {
       )}
     </Paper>
   )
-}
-
-function formatCurrency(value?: number) {
-  if (value === undefined || value === null || isNaN(value)) {
-    return '—'
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
-  }).format(value)
-}
-
-function formatPercent(value?: number) {
-  if (value === undefined || value === null || isNaN(value)) {
-    return '—'
-  }
-  return `${value.toFixed(2)}%`
 }
 
 function AuthPanel() {

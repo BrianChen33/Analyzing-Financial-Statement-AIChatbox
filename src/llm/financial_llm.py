@@ -1,41 +1,18 @@
 """
-LLM integration module for conversational AI and financial analysis
-
-This module provides a FinancialLLM wrapper that can use either OpenAI
-or Coze as a backend. It avoids hard-coded secrets and handles optional
-dependencies gracefully.
+LLM integration module for conversational AI and financial analysis powered by
+Alibaba Cloud's Tongyi Qianwen models.
 """
 
-import importlib.util
+from __future__ import annotations
+
+import json
 import os
 from typing import Dict, Any, List, Optional
+import textwrap
 
-try:
-    _openai_module = importlib.import_module("openai")
-    OpenAI = getattr(_openai_module, "OpenAI", _openai_module)
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    OpenAI = None
+import requests
 
-try:
-    _coze_module = importlib.import_module("cozepy")
-    COZE_CN_BASE_URL = getattr(_coze_module, "COZE_CN_BASE_URL", None)
-    COZE_COM_BASE_URL = getattr(_coze_module, "COZE_COM_BASE_URL", None)
-    ChatEventType = getattr(_coze_module, "ChatEventType", None)
-    Coze = getattr(_coze_module, "Coze", None)
-    Message = getattr(_coze_module, "Message", None)
-    TokenAuth = getattr(_coze_module, "TokenAuth", None)
-
-    COZE_AVAILABLE = True
-except Exception:
-    COZE_AVAILABLE = False
-    COZE_CN_BASE_URL = None  # type: ignore
-    COZE_COM_BASE_URL = None  # type: ignore
-    ChatEventType = None  # type: ignore
-    Coze = None  # type: ignore
-    Message = None  # type: ignore
-    TokenAuth = None  # type: ignore
+from src.utils.data_extraction import FINANCIAL_FIELDS
 
 try:
     from dotenv import load_dotenv
@@ -45,134 +22,94 @@ except Exception:
     pass
 
 
+DEFAULT_TONGYI_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+DEFAULT_TONGYI_MODEL = "qwen-plus"
+
+
+class TongyiClient:
+    """Lightweight client for the Tongyi Qianwen OpenAI-compatible API surface."""
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: int = 60,
+    ) -> None:
+        if not api_key:
+            raise ValueError(
+                "Tongyi API key is missing. Set TONGYI_API_KEY (or DASHSCOPE_API_KEY) in your environment."
+            )
+
+        self.api_key = api_key
+        self.base_url = (base_url or DEFAULT_TONGYI_BASE_URL).rstrip("/")
+        self.model = model or DEFAULT_TONGYI_MODEL
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+        )
+
+    def create_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.4,
+        max_tokens: int = 800,
+        response_format: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "model": model or self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if response_format:
+            payload["response_format"] = response_format
+
+        response = self.session.post(
+            f"{self.base_url}/chat/completions",
+            json=payload,
+            timeout=self.timeout,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Tongyi request failed ({response.status_code}): {response.text.strip()}"
+            )
+        return response.json()
+
+
 class FinancialLLM:
-    """Handles LLM interactions for financial statement analysis and Q&A."""
+    """Handles Tongyi interactions for financial statement analysis and Q&A."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        provider: str = "openai",
-        coze_token: Optional[str] = None,
-        coze_bot_id: Optional[str] = None,
-        coze_base_url: Optional[str] = None,
-        coze_default_user_id: str = "111",
-        use_coze_fallback: bool = True,
-    ):
-        """Initialize the LLM client.
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> None:
+        self.api_key = api_key or os.getenv("TONGYI_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+        self.base_url = base_url or os.getenv("TONGYI_BASE_URL", DEFAULT_TONGYI_BASE_URL)
+        self.model = model or os.getenv("TONGYI_MODEL", DEFAULT_TONGYI_MODEL)
 
-        Args:
-            api_key: OpenAI API key (if not provided, reads from environment).
-            provider: Which backend to use ("openai" or "coze").
-            coze_token: Coze access token (uses COZE_API_TOKEN env var if not provided).
-            coze_bot_id: Coze bot id (uses COZE_BOT_ID env var if not provided).
-            coze_base_url: Override Coze API endpoint.
-            coze_default_user_id: Default user id when talking to Coze bot.
-            use_coze_fallback: When provider=openai, allow Coze as a fallback if OpenAI fails.
-        """
+        self.client = TongyiClient(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            model=self.model,
+        )
 
-        self.provider = provider.lower()
-        self.conversation_history: List[Dict[str, str]] = []
-        self.use_coze_fallback = use_coze_fallback
+        self.conversation_histories: Dict[str, List[Dict[str, str]]] = {}
+        self.default_user_id = "default"
 
-        # Track OpenAI state to decide whether to fallback.
-        self.openai_enabled: bool = False
+    def analyze_document_with_vision(self, image_base64: str, prompt: Optional[str] = None) -> str:
+        """Placeholder for future Tongyi vision support."""
 
-        # Fallback clients are kept separate to avoid overwriting explicit Coze instances.
-        self.coze_fallback_client = None
-        self.coze_fallback_bot_id = None
-        self.coze_fallback_default_user_id = None
-
-        if self.provider == "openai":
-            if OPENAI_AVAILABLE:
-                self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-                if self.api_key:
-                    self.client = OpenAI(api_key=self.api_key)
-                    self.model = os.getenv("OPENAI_MODEL", "gpt-4")
-                    self.openai_enabled = True
-                else:
-                    self.client = None
-                    self.model = None
-            else:
-                self.client = None
-                self.model = None
-
-            # Prepare Coze fallback if requested.
-            if self.use_coze_fallback:
-                self._init_coze_fallback(coze_token, coze_bot_id, coze_base_url, coze_default_user_id)
-
-            if not self.openai_enabled and not self._can_use_coze_fallback():
-                raise ValueError(
-                    "OpenAI is not available (missing package or API key) and no Coze fallback is configured."
-                )
-
-        elif self.provider == "coze":
-            if not COZE_AVAILABLE:
-                raise ValueError(
-                    "Coze library not installed. Install with: pip install cozepy"
-                )
-
-            # Do NOT hard-code secrets here; prefer environment variables.
-            self.coze_token = coze_token or os.getenv("COZE_API_TOKEN")
-            if not self.coze_token:
-                raise ValueError(
-                    "Coze access token not found. Set COZE_API_TOKEN environment variable."
-                )
-
-            self.coze_bot_id = coze_bot_id or os.getenv("COZE_BOT_ID")
-            if not self.coze_bot_id:
-                raise ValueError("Coze bot id not configured. Set COZE_BOT_ID.")
-
-            base_from_region = (
-                COZE_CN_BASE_URL if os.getenv("COZE_REGION", "cn").lower() == "cn" else COZE_COM_BASE_URL
-            )
-            self.coze_base_url = coze_base_url or base_from_region
-            self.coze_default_user_id = coze_default_user_id or os.getenv(
-                "COZE_DEFAULT_USER_ID", "111"
-            )
-
-            self.coze_client = Coze(auth=TokenAuth(token=self.coze_token), base_url=self.coze_base_url)
-
-        else:
-            raise ValueError("Unsupported provider. Use 'openai' or 'coze'.")
-
-    def analyze_document_with_vision(self, image_base64: str, prompt: str = None) -> str:
-        """Analyze financial statement image using GPT-4 Vision.
-
-        Note: Vision analysis is currently supported only when using the OpenAI provider.
-        """
-
-        if self.provider != "openai":
-            raise ValueError("Vision analysis is only supported with the OpenAI provider.")
-
-        if not prompt:
-            prompt = (
-                "Analyze this financial statement image and extract:\n"
-                "1. Key financial metrics (revenue, net income, assets, liabilities, equity)\n"
-                "2. Important line items and their values\n"
-                "3. Any notable observations or irregularities\n\n"
-                "Provide the information in a structured format."
-            )
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4-vision-preview",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=1500,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"Error analyzing image: {str(e)}"
+        raise NotImplementedError(
+            "Vision analysis is not yet supported for the Tongyi integration."
+        )
 
     def generate_financial_insights(
         self,
@@ -192,21 +129,19 @@ class FinancialLLM:
             "Be specific, actionable, and professional."
         )
 
-        def _openai_call():
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert financial analyst with deep knowledge of financial statements, ratios, and risk assessment."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=1000,
-            )
-            return response.choices[0].message.content
+        messages = [
+            {"role": "system", "content": self._build_system_prompt()},
+            {"role": "user", "content": prompt},
+        ]
 
-        return self._with_coze_fallback(prompt, _openai_call, error_prefix="Error generating insights")
+        return self._complete(messages, temperature=0.35, max_tokens=900)
 
-    def answer_question(self, question: str, context: Dict[str, Any]) -> str:
+    def answer_question(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        user_id: Optional[str] = None,
+    ) -> str:
         """Answer user questions about the financial statement."""
 
         context_str = (
@@ -216,29 +151,26 @@ class FinancialLLM:
             f"Trends:\n{self._format_dict(context.get('trends', {}))}\n"
         )
 
+        active_user_id = user_id or self.default_user_id
         messages = [
-            {"role": "system", "content": f"You are a helpful financial analyst assistant. Use this context to answer questions:\n\n{context_str}"}
+            {
+                "role": "system",
+                "content": self._build_system_prompt(
+                    "Always leverage the supplied financial context and keep your answer concise."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Financial context for this user:\n{context_str}\nAcknowledge the context before answering follow-up questions.",
+            },
         ]
-        messages.extend(self.conversation_history[-5:])
+        messages.extend(self._get_history(active_user_id))
         messages.append({"role": "user", "content": question})
 
-        def _openai_call():
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=600,
-            )
-            answer = response.choices[0].message.content
-            self._update_history("user", question)
-            self._update_history("assistant", answer)
-            return answer
-
-        return self._with_coze_fallback(
-            prompt=messages[-1]["content"],
-            openai_callable=_openai_call,
-            error_prefix="Error answering question",
-        )
+        answer = self._complete(messages, temperature=0.3, max_tokens=650)
+        self._update_history(active_user_id, "user", question)
+        self._update_history(active_user_id, "assistant", answer)
+        return answer
 
     def generate_summary(self, document_text: str) -> str:
         """Generate a concise summary of the financial statement."""
@@ -249,23 +181,135 @@ class FinancialLLM:
             f"Document:\n{document_text[:3000]}\n\nProvide a concise, structured summary."
         )
 
-        def _openai_call():
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a financial analyst expert at summarizing financial statements."},
-                    {"role": "user", "content": prompt},
+        messages = [
+            {
+                "role": "system",
+                "content": self._build_system_prompt(
+                    "Summaries should highlight performance, risk, and forward-looking signals in English."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ]
+
+        return self._complete(messages, temperature=0.4, max_tokens=520)
+
+    def extract_structured_data(
+        self,
+        document_text: str,
+        *,
+        period_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Ask Tongyi to convert raw financial text into structured metrics."""
+
+        if not document_text.strip():
+            return {}
+
+        schema_example = json.dumps(
+            {
+                "metadata": {
+                    "entity": "ACME Corp",
+                    "period_label": "FY2023",
+                    "fiscal_year": "2023",
+                    "currency": "USD",
+                },
+                "metrics": {
+                    "revenue": 1250000000.0,
+                    "sales": 1250000000.0,
+                    "gross_profit": 520000000.0,
+                    "operating_income": 210000000.0,
+                    "net_income": 155000000.0,
+                    "total_assets": 1800000000.0,
+                    "current_assets": 620000000.0,
+                    "total_liabilities": 950000000.0,
+                    "current_liabilities": 420000000.0,
+                    "equity": 850000000.0,
+                    "cash": 120000000.0,
+                    "operating_cash_flow": 240000000.0,
+                    "investing_cash_flow": -80000000.0,
+                    "financing_cash_flow": -60000000.0,
+                    "free_cash_flow": 160000000.0,
+                    "total_debt": 400000000.0,
+                    "interest_expense": 12000000.0,
+                },
+                "notes": [
+                    "Gross margin improved to 41% year over year.",
+                    "Net debt declined by 5% due to debt repayment.",
                 ],
-                temperature=0.5,
-                max_tokens=500,
-            )
-            return response.choices[0].message.content
+            },
+            indent=2,
+        )
 
-        return self._with_coze_fallback(prompt, _openai_call, error_prefix="Error generating summary")
+        schema_partial_example = json.dumps(
+            {
+                "metadata": {
+                    "entity": "Beta Manufacturing",
+                    "period_label": "Q2 2023",
+                    "fiscal_year": "2023",
+                    "currency": "USD",
+                },
+                "metrics": {
+                    "revenue": 42000000.0,
+                    "net_income": 3200000.0,
+                    "total_assets": None,
+                    "equity": None,
+                    "operating_cash_flow": 5800000.0,
+                    "investing_cash_flow": -1200000.0,
+                    "free_cash_flow": 4600000.0,
+                },
+                "notes": [
+                    "Management guidance points to stable demand for the remainder of FY2023."
+                ],
+            },
+            indent=2,
+        )
 
-    def reset_conversation(self):
-        """Clear conversation history."""
-        self.conversation_history = []
+        excerpt = document_text[:6000]
+        system_prompt = textwrap.dedent(
+            f"""
+            You are a forensic accountant extracting structured metrics from corporate filings. Always respond with
+            JSON that matches this schema (omit fields by setting them to null, never invent new keys):
+            {schema_example}
+
+            Partial responses are allowed when a figure is missing. Example:
+            {schema_partial_example}
+
+            Rules:
+            1. Return numbers as floats in USD with no units or thousands separators.
+            2. If a value is unknown, set it to null instead of guessing.
+            3. Use the notes array for any qualitative insights (max 3 short strings).
+            4. Keep output strictly in JSON—no commentary before or after the object.
+            """
+        ).strip()
+
+        user_prompt = textwrap.dedent(
+            f"""
+            Document excerpt:
+            {excerpt}
+
+            Period hint: {period_hint or 'unknown'}
+            Extract the metrics above and output JSON that follows the schema exactly.
+            """
+        ).strip()
+
+        raw = self._complete(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=900,
+            response_format={"type": "json_object"},
+        )
+        payload = self._safe_json_loads(raw)
+        return self._normalize_structured_payload(payload)
+
+    def reset_conversation(self, user_id: Optional[str] = None) -> None:
+        """Clear conversation history for a user or entirely."""
+
+        if user_id:
+            self.conversation_histories.pop(user_id, None)
+        else:
+            self.conversation_histories.clear()
 
     def _format_dict(self, data: Dict) -> str:
         """Format dictionary for display."""
@@ -279,112 +323,73 @@ class FinancialLLM:
             return "  - No significant risks identified"
         return "\n".join([f"  - [{r.get('severity','N/A')}] {r.get('type','')}: {r.get('description','')}" for r in risks])
 
-    def _update_history(self, role: str, content: str) -> None:
-        """Maintain a bounded conversation history."""
-        self.conversation_history.append({"role": role, "content": content})
-        # Keep only the last 20 messages
-        if len(self.conversation_history) > 20:
-            self.conversation_history = self.conversation_history[-20:]
-
-    def coze_stream_chat(self, prompt: str, user_id: Optional[str] = None) -> str:
-        """Stream a chat completion from a Coze bot.
-
-        This method aggregates streaming events into a single response string.
-        """
-
-        if self.provider != "coze":
-            raise ValueError("coze_stream_chat is only available when provider='coze'.")
-
-        active_user_id = user_id or self.coze_default_user_id
-        return self._coze_chat_with_client(
-            prompt=prompt,
-            client=self.coze_client,
-            bot_id=self.coze_bot_id,
-            default_user_id=active_user_id,
+    def _build_system_prompt(self, extra: Optional[str] = None) -> str:
+        base = (
+            "You are a senior financial analyst who must always respond in English. "
+            "Provide structured, factual, and concise answers grounded in corporate financial statements."
         )
+        if extra:
+            base = f"{base} {extra.strip()}"
+        return base
 
-    def _with_coze_fallback(self, prompt: str, openai_callable, error_prefix: str) -> str:
-        """Try OpenAI first; on failure (or when unavailable) fall back to Coze if configured."""
-
-        # If the active provider is Coze, just use Coze directly.
-        if self.provider == "coze":
-            return self.coze_stream_chat(prompt)
-
-        # OpenAI path with optional fallback.
-        if self.provider == "openai":
-            if self.openai_enabled:
-                try:
-                    return openai_callable()
-                except Exception as e:
-                    if self._can_use_coze_fallback():
-                        return self._coze_fallback_response(prompt, fallback_error=e)
-                    return f"{error_prefix}: {str(e)}"
-
-            # OpenAI not initialized but fallback allowed.
-            if self._can_use_coze_fallback():
-                return self._coze_fallback_response(prompt, fallback_error="OpenAI unavailable")
-
-            return f"{error_prefix}: OpenAI unavailable and Coze fallback is not configured."
-
-        raise ValueError("Unsupported provider. Use 'openai' or 'coze'.")
-
-    def _coze_fallback_response(self, prompt: str, fallback_error: Any) -> str:
-        """Format a Coze fallback response including the original OpenAI error."""
-        reply = self._coze_chat_with_client(
-            prompt=prompt,
-            client=self.coze_fallback_client,
-            bot_id=self.coze_fallback_bot_id,
-            default_user_id=self.coze_fallback_default_user_id,
-        )
-        return f"[OpenAI fallback due to: {fallback_error}] {reply}"
-
-    def _init_coze_fallback(
+    def _complete(
         self,
-        coze_token: Optional[str],
-        coze_bot_id: Optional[str],
-        coze_base_url: Optional[str],
-        coze_default_user_id: str,
-    ) -> None:
-        """Initialize Coze fallback client if credentials are present."""
-        if not COZE_AVAILABLE:
-            return
-
-        token = coze_token or os.getenv("COZE_API_TOKEN")
-        bot_id = coze_bot_id or os.getenv("COZE_BOT_ID")
-        if not token or not bot_id:
-            return
-
-        base_from_region = (
-            COZE_CN_BASE_URL if os.getenv("COZE_REGION", "cn").lower() == "cn" else COZE_COM_BASE_URL
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.4,
+        max_tokens: int = 800,
+        response_format: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        response = self.client.create_chat_completion(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            model=model,
         )
-        base_url = coze_base_url or base_from_region
+        try:
+            return response["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError):
+            raise RuntimeError("Tongyi response did not include completion text.")
 
-        self.coze_fallback_client = Coze(auth=TokenAuth(token=token), base_url=base_url)
-        self.coze_fallback_bot_id = bot_id
-        self.coze_fallback_default_user_id = coze_default_user_id or os.getenv("COZE_DEFAULT_USER_ID", "111")
+    def _get_history(self, user_id: str) -> List[Dict[str, str]]:
+        history = self.conversation_histories.get(user_id, [])
+        return history[-10:]
 
-    def _can_use_coze_fallback(self) -> bool:
-        """Check if Coze fallback client is ready."""
-        return self.use_coze_fallback and self.coze_fallback_client is not None and self.coze_fallback_bot_id is not None
+    def _update_history(self, user_id: str, role: str, content: str) -> None:
+        history = self.conversation_histories.setdefault(user_id, [])
+        history.append({"role": role, "content": content})
+        if len(history) > 20:
+            self.conversation_histories[user_id] = history[-20:]
 
-    def _coze_chat_with_client(self, prompt: str, client, bot_id: str, default_user_id: str) -> str:
-        """Shared Coze chat streaming logic for primary and fallback clients."""
-        response_chunks: List[str] = []
-        token_usage: Optional[int] = None
-        for event in client.chat.stream(
-            bot_id=bot_id,
-            user_id=default_user_id,
-            additional_messages=[Message.build_user_question_text(prompt)],
-        ):
-            if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
-                if event.message and event.message.content:
-                    response_chunks.append(event.message.content)
-            if event.event == ChatEventType.CONVERSATION_CHAT_COMPLETED:
-                token_usage = getattr(event.chat.usage, "token_count", None)
+    def _safe_json_loads(self, payload: str) -> Dict[str, Any]:
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            trimmed = payload.strip()
+            start = trimmed.find("{")
+            end = trimmed.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                try:
+                    return json.loads(trimmed[start : end + 1])
+                except json.JSONDecodeError:
+                    return {}
+            return {}
 
-        aggregated_response = "".join(response_chunks)
-        if token_usage is not None:
-            aggregated_response += f"\n\n[Coze token usage: {token_usage}]"
+    def _normalize_structured_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not payload:
+            return {}
 
-        return aggregated_response
+        metrics = payload.get("metrics") or {}
+        if not metrics:
+            metrics = {
+                field: payload.get(field)
+                for field in FINANCIAL_FIELDS
+                if payload.get(field) is not None
+            }
+
+        payload["metrics"] = metrics
+        payload.setdefault("metadata", {})
+        payload.setdefault("notes", [])
+        return payload
 

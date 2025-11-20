@@ -4,7 +4,7 @@ const nextConfig = {
   env: {
     API_URL: process.env.API_URL || 'http://localhost:8000',
   },
-  // 添加 API 代理，将 /api 请求转发到 FastAPI 后端
+  // Proxy /api requests to the FastAPI backend
   async rewrites() {
     return [
       {

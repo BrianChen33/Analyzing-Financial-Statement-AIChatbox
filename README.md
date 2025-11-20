@@ -1,65 +1,68 @@
+echo OPENAI_MODEL=gpt-4 >> .env
+echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
 # Financial Statement AI Chatbox
 
-当前仓库仅保留运行所需的核心代码（src / frontend / tests 等），旧版文档与示例已清理。本 README 为最新使用说明。
+Modern FastAPI + Next.js workspace for multimodal financial-statement analysis, now powered end-to-end by Alibaba Cloud's Tongyi Qianwen LLM.
 
-## 功能概览
-- **多格式解析**：自动识别 PDF / 图片 / Excel / CSV / XBRL。
-- **指标分析**：盈利、流动、杠杆、效率、现金流指标 + DuPont + 多期趋势。
-- **风险与同行对标**：内置 General / Technology / Retail / Manufacturing 基准，输出差距及告警。
-- **AI 能力（可选）**：若设置 `OPENAI_API_KEY`，可启用 GPT 洞察、Q&A、Vision 图片理解。
-- **全新前端体验**：UI 参照 Next.js dashboard 篇章，基于 Material UI 自适应布局（桌面侧边栏 + 移动底部导航），引入用户登录、统计卡片与导航抽屉。
-- **登录与会话记录**：FastAPI 后端新增注册/登录接口，所有 AI 对话自动同步到 `data/chat_history.json` 并在前端「Conversation Archive」面板中留存。
+## Feature Highlights
+- **Multi-format parsing** – ingest PDF, image, Excel, CSV, and XBRL statements with automatic normalization.
+- **Insightful analytics** – profitability/liquidity/leverage/efficiency ratios, DuPont drill-down, cash-flow rollups, and historical trend detection.
+- **Risk + peer benchmarking** – compare against General/Technology/Retail/Manufacturing yardsticks and surface alert narratives.
+- **Tongyi-native AI** – structured extraction, dashboard insights, and conversational Q&A via the DashScope OpenAI-compatible endpoint (Singapore region by default).
+- **Responsive front end** – Material UI dashboard with authentication, upload workflow, KPI cards, and persistent Q&A archives.
 
-## 快速上手
+## Quick Start
 ```bash
 git clone <repo>
-cd Analyzing-Financial-Statement-AIChatbox-copilot-develop-conversational-ai-agent/Analyzing-Financial-Statement-AIChatbox-copilot-develop-conversational-ai-agent
+cd Analyzing-Financial-Statement-AIChatbox
 
 # Backend
+python -m venv .venv
+.venv\Scripts\activate  # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-echo OPENAI_API_KEY=sk-xxxx > .env
-echo OPENAI_MODEL=gpt-4 >> .env
-python api_server.py   # 默认 http://localhost:8000
+cp .env.example .env
+## edit .env and add your Tongyi credentials
+python api_server.py  # runs on http://localhost:8000
 
 # Frontend
 cd frontend
 npm install
 echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
-npm run dev            # 默认 http://localhost:3000
+npm run dev  # runs on http://localhost:3000
 ```
-打开浏览器上传报表，在上传前选择行业即可查看指标、风险、同行对标及 AI 洞察。未配置 OpenAI 时，仍可使用本地解析与指标功能。
+Upload one or more statements, pick the closest industry, and the dashboard will populate metrics, risks, peer comparisons, and AI-driven commentary entirely in English.
 
-## 登录与会话记录
-1. 首次进入前端页面后，可在右侧 Authentication 卡片中注册或登录（同一邮箱只需注册一次）。
-2. 认证信息存储在 `data/users.json`（运行时自动创建，已通过 `.gitignore` 排除）。
-3. 每次向 AI 提问时，FastAPI 会将问答追加到 `data/chat_history.json`，前端 Q&A 页签右侧的「Conversation Archive」展示所有历史记录并支持一键回填问题。
-4. 如需重置账号或历史记录，停止后端服务并清空 `data/*.json` 即可。
+## Authentication & Chat History
+1. Register or sign in from the front-end auth panel (emails are stored in `data/users.json`, which is git-ignored).
+2. Every chat exchange is appended to `data/chat_history.json` and rendered in the Conversation Archive sidebar.
+3. Remove those JSON files to reset credentials or chat history.
 
-## 常用脚本
-- `python api_server.py`：FastAPI 后端
-- `streamlit run app.py`：可选的 Streamlit 旧界面
-- `npm run dev`：Next.js 前端
-- `pytest tests -q`：单元测试
+## Common Scripts
+- `python api_server.py` – FastAPI backend
+- `streamlit run app.py` – optional Streamlit UI
+- `npm run dev` – Next.js frontend
+- `pytest tests -q` – backend unit tests
 
-## 目录结构
+## Project Layout
 ```
 ├── api_server.py
 ├── app.py
 ├── requirements.txt
-├── src/            # 解析、指标、LLM、工具
-├── frontend/       # Next.js 应用
-└── tests/          # Pytest 覆盖
+├── src/            # parsers, analytics, Tongyi client, utilities
+├── frontend/       # Next.js dashboard
+└── tests/          # pytest coverage
 ```
 
-## 环境变量
-| 变量 | 说明 | 必需 |
-| ---- | ---- | ---- |
-| `OPENAI_API_KEY` | OpenAI 密钥，启用 AI 洞察/Q&A/Vision | 否 |
-| `OPENAI_MODEL` | GPT 模型名，默认 `gpt-4` | 否 |
-| `NEXT_PUBLIC_API_URL` | 前端访问的后端地址 | 是（前端运行时） |
+## Environment Variables
+| Variable | Description | Required |
+| --- | --- | --- |
+| `TONGYI_API_KEY` | DashScope/Tongyi API key (never check real keys into git) | Yes |
+| `TONGYI_BASE_URL` | Base URL for the compatible-mode endpoint (defaults to `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`) | No |
+| `TONGYI_MODEL` | Tongyi chat model name (defaults to `qwen-plus`) | No |
+| `NEXT_PUBLIC_API_URL` | Front-end URL for the FastAPI backend | Yes (frontend) |
 
-## 提示
-- 上传至少两期数据才能查看趋势；若同行对标为空，请确认上传的报表包含收入/利润/资产字段并选择行业。
-- 语音输入依赖浏览器 Web Speech API，若网络受限可直接使用文本问答。
-- 新版前端使用响应式布局：桌面端为固定侧边栏 + 内容区域，移动端自动切换为底部导航；若需要定制品牌色，可在 `frontend/src/pages/_app.tsx` 中调整主题。
-- 如需进一步精简或部署说明，可继续告知，我会按需处理。
+## Tips
+- Upload at least two periods to unlock the revenue/profit trend charts.
+- If benchmarking returns empty results, confirm that the uploaded statement contains revenue/profit/asset fields and that the industry selector is set.
+- Voice input relies on the browser Web Speech API; fall back to text chat when network restrictions apply.
+- Theme tweaks live in `frontend/src/pages/_app.tsx` if you want to match corporate branding.

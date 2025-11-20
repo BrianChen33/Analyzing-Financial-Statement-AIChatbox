@@ -1,48 +1,48 @@
 @echo off
 echo ========================================
-echo 启动后端服务器
+echo Launch backend server
 echo ========================================
 echo.
 
-REM 检查Python是否安装
+REM Check Python installation
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未找到Python，请先安装Python 3.8+
+    echo [ERROR] Python not found. Please install Python 3.8 or newer.
     pause
     exit /b 1
 )
 
-echo [信息] Python版本:
+echo [INFO] Python version:
 python --version
 echo.
 
-REM 检查依赖
-echo [信息] 检查依赖...
+REM Dependency check
+echo [INFO] Checking dependencies...
 python -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
-    echo [警告] 依赖未安装，正在安装...
+    echo [WARN] Dependencies missing, installing...
     pip install -r requirements.txt
     if errorlevel 1 (
-        echo [错误] 依赖安装失败
+        echo [ERROR] Dependency installation failed
         pause
         exit /b 1
     )
 )
 
-echo [信息] 依赖检查完成
+echo [INFO] Dependencies ready
 echo.
 
-REM 检查.env文件
+REM Check .env file
 if not exist .env (
-    echo [警告] 未找到.env文件
-    echo [提示] 请创建.env文件并添加OPENAI_API_KEY
+    echo [WARN] .env file not found
+    echo [TIP] Create .env and add your TONGYI_API_KEY
     echo.
 )
 
-REM 启动服务器
-echo [信息] 启动FastAPI服务器...
-echo [信息] 服务器将在 http://localhost:8000 运行
-echo [信息] 按 Ctrl+C 停止服务器
+REM Start server
+echo [INFO] Starting FastAPI server...
+echo [INFO] Server running at http://localhost:8000
+echo [INFO] Press Ctrl+C to stop
 echo.
 echo ========================================
 echo.

@@ -14,6 +14,7 @@ from src.utils import (
     extract_from_structured_data,
     extract_from_xbrl,
     build_cash_flow_summary,
+    merge_llm_structured_data,
 )
 
 
@@ -219,15 +220,33 @@ class FinancialChatbot:
         if doc_type == 'pdf':
             all_text = '\n'.join([page.get('text', '') for page in parsed_doc.get('content', [])])
             financial_data = self.analyzer.extract_financial_data(all_text)
+            if self.llm and all_text.strip():
+                try:
+                    structured = self.llm.extract_structured_data(
+                        all_text,
+                        period_hint=Path(file_path).stem,
+                    )
+                    if structured:
+                        financial_data, _, _ = merge_llm_structured_data(financial_data, structured)
+                except Exception as exc:
+                    print(f"Warning: LLM structured extraction failed: {exc}")
         elif doc_type in {'excel', 'csv'}:
             financial_data = extract_from_structured_data(parsed_doc)
         elif doc_type == 'xbrl':
             financial_data = extract_from_xbrl(parsed_doc)
         elif doc_type == 'image' and self.llm:
             print("🤖 Using AI vision to analyze document...")
-            analysis = self.llm.analyze_document_with_vision(parsed_doc['base64'])
-            financial_data = {'llm_extraction': analysis}
-            all_text = analysis
+            try:
+                analysis = self.llm.analyze_document_with_vision(parsed_doc['base64'])
+                financial_data = {'llm_extraction': analysis}
+                all_text = analysis
+            except NotImplementedError:
+                financial_data = {}
+                all_text = ""
+                print("Vision analysis is not supported in the current LLM provider.")
+            except Exception as exc:
+                financial_data = {}
+                print(f"Vision analysis failed: {exc}")
         else:
             financial_data = {}
         

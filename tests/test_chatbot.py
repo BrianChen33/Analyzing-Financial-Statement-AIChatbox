@@ -15,6 +15,7 @@ from src.utils import (
     extract_from_structured_data,
     extract_from_xbrl,
     PeerBenchmark,
+    merge_llm_structured_data,
 )
 
 
@@ -180,6 +181,27 @@ class TestDataExtraction:
         assert data['net_income'] == 250_000
         assert data['total_assets'] == 5_000_000
         assert data['total_liabilities'] == 2_000_000
+
+    def test_merge_llm_structured_data_updates_metrics(self):
+        base = {}
+        structured = {
+            'metadata': {'period_label': 'FY2023', 'currency': 'USD'},
+            'notes': ['LLM detected audited figures.'],
+            'metrics': {
+                'revenue': '1,250,000',
+                'net_income': 250000,
+                'operating_cash_flow': 300000,
+                'investing_cash_flow': -50000,
+            }
+        }
+
+        updated, metadata, notes = merge_llm_structured_data(base, structured)
+
+        assert updated['revenue'] == 1_250_000
+        assert updated['net_income'] == 250_000
+        assert updated['free_cash_flow'] == 250_000  # 300k + (-50k)
+        assert metadata['period_label'] == 'FY2023'
+        assert notes == ['LLM detected audited figures.']
 
 
 class TestPeerBenchmark:

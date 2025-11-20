@@ -1,49 +1,49 @@
 @echo off
 echo ========================================
-echo 启动前端服务器
+echo Launch frontend server
 echo ========================================
 echo.
 
-REM 检查Node.js是否安装
+REM Check Node.js installation
 node --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未找到Node.js，请先安装Node.js 18+
+    echo [ERROR] Node.js 18+ is required. Please install it first.
     pause
     exit /b 1
 )
 
-echo [信息] Node.js版本:
+echo [INFO] Node.js version:
 node --version
 echo.
 
-REM 进入前端目录
+REM Enter frontend directory
 cd frontend
 if errorlevel 1 (
-    echo [错误] 无法进入frontend目录
+    echo [ERROR] Unable to enter the frontend directory
     pause
     exit /b 1
 )
 
-REM 检查node_modules
+REM Ensure node_modules exists
 if not exist node_modules (
-    echo [警告] 依赖未安装，正在安装...
+    echo [WARN] Dependencies missing, installing...
     call npm install
     if errorlevel 1 (
-        echo [错误] 依赖安装失败
+        echo [ERROR] Dependency installation failed
         pause
         exit /b 1
     )
 )
 
-REM 检查.env.local
+REM Ensure .env.local exists
 if not exist .env.local (
-    echo [信息] 创建.env.local文件...
+    echo [INFO] Creating .env.local...
     echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
 )
 
-echo [信息] 启动Next.js开发服务器...
-echo [信息] 前端将在 http://localhost:3000 运行
-echo [信息] 按 Ctrl+C 停止服务器
+echo [INFO] Starting Next.js dev server...
+echo [INFO] Frontend running at http://localhost:3000
+echo [INFO] Press Ctrl+C to stop
 echo.
 echo ========================================
 echo.

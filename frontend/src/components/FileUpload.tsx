@@ -98,9 +98,9 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
           Tips
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          • Upload multiple periods (e.g., FY2022 & FY2023) to unlock trend charts.<br />
-          • Choose the closest industry to enable peer benchmarking.<br />
-          • Supported formats: PDF, images, Excel, CSV, XBRL.
+          • Upload multiple reporting periods (e.g., FY2022 & FY2023) to strengthen KPI accuracy.<br />
+          • Choose the closest industry to enable peer benchmarking and narrative insights.<br />
+          • Supported formats: PDF, images, Excel, CSV, XBRL; mix and match within one run.
         </Typography>
       </Paper>
       <Paper

@@ -4,7 +4,7 @@ FastAPI backend for financial statement analysis
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
 import tempfile
@@ -23,6 +23,7 @@ from src.utils import (
     extract_from_structured_data,
     extract_from_xbrl,
     build_cash_flow_summary,
+    merge_llm_structured_data,
 )
 
 app = FastAPI(title="Financial Statement AI Analyzer API")
@@ -217,17 +218,36 @@ async def analyze_files(
             
             parsed_doc = parser.parse_document(file_path)
             period_label = Path(file.filename).stem
+            llm_metadata: Dict[str, Any] = {}
+            llm_notes: List[str] = []
             
             if parsed_doc['type'] == 'pdf':
                 all_text = '\n'.join([page['text'] for page in parsed_doc['content']])
                 financial_data = analyzer.extract_financial_data(all_text)
+                if llm and all_text.strip():
+                    try:
+                        structured = llm.extract_structured_data(all_text, period_hint=period_label)
+                        if structured:
+                            financial_data, llm_metadata, llm_notes = merge_llm_structured_data(
+                                financial_data,
+                                structured,
+                            )
+                    except Exception as exc:
+                        print(f"Warning: structured extraction failed for {file.filename}: {exc}")
             elif parsed_doc['type'] in ['excel', 'csv']:
                 financial_data = extract_from_structured_data(parsed_doc)
             elif parsed_doc['type'] == 'xbrl':
                 financial_data = extract_from_xbrl(parsed_doc)
             elif parsed_doc['type'] == 'image' and llm:
-                analysis = llm.analyze_document_with_vision(parsed_doc['base64'])
-                financial_data = {'llm_extraction': analysis}
+                try:
+                    analysis = llm.analyze_document_with_vision(parsed_doc['base64'])
+                    financial_data = {'llm_extraction': analysis}
+                except NotImplementedError:
+                    financial_data = {}
+                    print("Vision analysis is not supported in the current LLM provider.")
+                except Exception as exc:
+                    financial_data = {}
+                    print(f"Vision analysis failed for {file.filename}: {exc}")
             else:
                 financial_data = {}
             
@@ -251,7 +271,9 @@ async def analyze_files(
                 'dupont': dupont,
                 'cash_flow': cash_flow,
                 'benchmark': benchmark,
-                'insights': insights
+                'insights': insights,
+                'llm_metadata': llm_metadata,
+                'llm_notes': llm_notes,
             })
         
         if len(results) == 1:
@@ -294,7 +316,9 @@ async def analyze_files(
             'trends': trends,
             'historical_data': historical_data,
             'industry': (primary.get('benchmark') or {}).get('industry', selected_industry.title()),
-            'insights': primary['insights']
+            'insights': primary['insights'],
+            'llm_metadata': primary.get('llm_metadata', {}),
+            'llm_notes': primary.get('llm_notes', []),
         }
     
     except Exception as e:
@@ -318,7 +342,7 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        answer = llm.answer_question(request.question, request.context)
+        answer = llm.answer_question(request.question, request.context, user_id=request.user_id)
         entry = _append_chat_history(request.user_id, request.question, answer)
         return {"answer": answer, "entry": entry}
     except Exception as e:

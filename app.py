@@ -92,10 +92,10 @@ if not st.session_state.analyzed:
         st.markdown("""
         ### How it works:
         
-        1. **Upload** financial statements (PDF / 图片 / Excel / CSV / XBRL)
-        2. **Analyze** 提取关键指标、趋势与风险
-        3. **Review** 仪表盘、同业对标、DuPont 分析
-        4. **Ask questions** 问答或导出 Markdown/文本报告
+        1. **Upload** financial statements (PDF / Images / Excel / CSV / XBRL)
+        2. **Analyze** to extract key metrics, trends, and risks
+        3. **Review** dashboards, peer benchmarks, and DuPont breakdowns
+        4. **Ask questions** or export Markdown/Text reports
         """)
 else:
     # Display analysis results

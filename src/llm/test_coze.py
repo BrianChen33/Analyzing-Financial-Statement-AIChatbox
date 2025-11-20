@@ -1,42 +1,35 @@
-# 保存为 test_coze.py 后运行：python test_coze.py
+"""Simple manual smoke test for the Tongyi Qianwen endpoint."""
+
 import os
-from cozepy import (
-    Coze,
-    TokenAuth,
-    COZE_CN_BASE_URL,
-    COZE_COM_BASE_URL,
-    ChatEventType,
-    Message,
-)
+import requests
 
-token = os.getenv("COZE_API_TOKEN")
-bot_id = os.getenv("COZE_BOT_ID")
-if not token or not bot_id:
-    raise RuntimeError("请先设置 COZE_API_TOKEN 和 COZE_BOT_ID 环境变量")
 
-region = os.getenv("COZE_REGION", "cn").lower()
-base_url = COZE_CN_BASE_URL if region == "cn" else COZE_COM_BASE_URL
-user_id = os.getenv("COZE_DEFAULT_USER_ID", "111")
+BASE_URL = os.getenv("TONGYI_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+API_KEY = os.getenv("TONGYI_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+MODEL = os.getenv("TONGYI_MODEL", "qwen-plus")
 
-client = Coze(auth=TokenAuth(token=token), base_url=base_url)
 
 def ask(question: str) -> str:
-    chunks = []
-    token_usage = None
-    for event in client.chat.stream(
-        bot_id=bot_id,
-        user_id=user_id,
-        additional_messages=[Message.build_user_question_text(question)],
-    ):
-        if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
-            if event.message and event.message.content:
-                chunks.append(event.message.content)
-        elif event.event == ChatEventType.CONVERSATION_CHAT_COMPLETED:
-            token_usage = getattr(event.chat.usage, "token_count", None)
-    result = "".join(chunks)
-    if token_usage is not None:
-        result += f"\n\n[Coze token usage: {token_usage}]"
-    return result
+    if not API_KEY:
+        raise RuntimeError("Set TONGYI_API_KEY before running this script.")
+
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": "You are an English-speaking financial assistant."},
+            {"role": "user", "content": question},
+        ],
+    }
+    resp = requests.post(
+        f"{BASE_URL.rstrip('/')}/chat/completions",
+        json=payload,
+        headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip()
+
 
 if __name__ == "__main__":
-    print(ask("你好，用一句话介绍你自己"))
+    print(ask("Give me a one-sentence overview of your capabilities."))

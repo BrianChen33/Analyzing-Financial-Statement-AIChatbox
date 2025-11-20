@@ -4,7 +4,7 @@ Utilities for extracting structured financial data from spreadsheets, CSV, and X
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import math
 import re
 
@@ -183,6 +183,39 @@ def build_cash_flow_summary(financial_data: Dict[str, Any]) -> Dict[str, Optiona
         'financing': financial_data.get('financing_cash_flow'),
         'free_cash_flow': financial_data.get('free_cash_flow')
     }
+
+
+def merge_llm_structured_data(
+    financial_data: Dict[str, Optional[float]],
+    structured_payload: Dict[str, Any],
+) -> Tuple[Dict[str, Optional[float]], Dict[str, Any], List[str]]:
+    """Merge LLM structured metrics into the existing financial dictionary.
+
+    Returns the updated financial data along with any metadata/notes discovered by the LLM.
+    """
+
+    if not structured_payload:
+        return financial_data, {}, []
+
+    metrics_block = structured_payload.get('metrics') or structured_payload
+    metadata = structured_payload.get('metadata') or {}
+    notes = structured_payload.get('notes') or []
+
+    for field in FINANCIAL_FIELDS:
+        value = (metrics_block or {}).get(field)
+        if value is None:
+            continue
+        numeric_value = _to_number(value)
+        if numeric_value is not None:
+            financial_data[field] = numeric_value
+
+    if financial_data.get('free_cash_flow') is None:
+        op_cf = financial_data.get('operating_cash_flow')
+        inv_cf = financial_data.get('investing_cash_flow')
+        if op_cf is not None and inv_cf is not None:
+            financial_data['free_cash_flow'] = op_cf + inv_cf
+
+    return financial_data, metadata, notes
 
 
 def _match_keyword(text: str) -> Optional[str]:
