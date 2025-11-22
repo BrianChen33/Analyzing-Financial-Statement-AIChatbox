@@ -97,7 +97,7 @@ export default function ChatInterface({ analysisData, user }: ChatInterfaceProps
       }
       setMessages(prev => [...prev, assistantMessage])
       if (response.entry) {
-        setHistory(prev => [...prev, response.entry])
+        setHistory(prev => [...prev, response.entry!])
       }
     } catch (err: any) {
       const errorMessage: Message = {

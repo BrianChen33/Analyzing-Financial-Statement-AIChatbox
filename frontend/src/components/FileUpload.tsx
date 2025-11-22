@@ -98,9 +98,9 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
           Tips
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          • Upload multiple reporting periods (e.g., FY2022 & FY2023) to strengthen KPI accuracy.<br />
+          • Upload annual financial statements  to strengthen KPI accuracy.<br />
           • Choose the closest industry to enable peer benchmarking and narrative insights.<br />
-          • Supported formats: PDF, images, Excel, CSV, XBRL; mix and match within one run.
+          • Supported formats: PDF, images, Excel, CSV, XBRL; PDF is recommended.
         </Typography>
       </Paper>
       <Paper
