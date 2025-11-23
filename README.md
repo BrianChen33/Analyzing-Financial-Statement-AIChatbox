@@ -1,4 +1,4 @@
-echo OPENAI_MODEL=gpt-4 >> .env
+echo TONGYI_MODEL=qwen-plus >> .env
 echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
 # Financial Statement AI Chatbox
 
@@ -25,8 +25,13 @@ cd Analyzing-Financial-Statement-AIChatbox
 python -m venv .venv
 .venv\Scripts\activate  # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env
-## edit .env and add your Tongyi credentials
+
+# Configure Tongyi Qianwen
+echo TONGYI_API_KEY=your_tongyi_api_key >> .env
+echo TONGYI_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1 >> .env
+echo TONGYI_MODEL=qwen-plus >> .env
+
+
 python api_server.py  # runs on http://localhost:8000
 
 # Frontend
@@ -72,6 +77,6 @@ Upload one or more statements, pick the closest industry, and the dashboard will
 - Voice input relies on the browser Web Speech API; fall back to text chat when network restrictions apply.
 - Theme tweaks live in `frontend/src/pages/_app.tsx` if you want to match corporate branding.
 - For demostration, you can use this into `.env`:
-    TONGYI_API_KEY=sk-5cf4c238d79e4fb1bcc7e8e5d307c0b3
-    TONGYI_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-    TONGYI_MODEL=qwen-plus
+- TONGYI_API_KEY=sk-5cf4c238d79e4fb1bcc7e8e5d307c0b3
+- TONGYI_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+- TONGYI_MODEL=qwen-plus
