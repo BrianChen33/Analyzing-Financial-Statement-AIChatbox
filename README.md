@@ -3,6 +3,11 @@ echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
 # Financial Statement AI Chatbox
 
 Modern FastAPI + Next.js workspace for multimodal financial-statement analysis, now powered end-to-end by Alibaba Cloud's Tongyi Qianwen LLM.
+This is a project by Group 17.
+Group member:
+CHEN Fengyuan 23096069D
+FU Shenghong 22108687D
+JIANG Zeyou 23098309D
 
 ## Feature Highlights
 - **Multi-format parsing** – ingest PDF, image, Excel, CSV, and XBRL statements with automatic normalization.
@@ -66,3 +71,7 @@ Upload one or more statements, pick the closest industry, and the dashboard will
 - If benchmarking returns empty results, confirm that the uploaded statement contains revenue/profit/asset fields and that the industry selector is set.
 - Voice input relies on the browser Web Speech API; fall back to text chat when network restrictions apply.
 - Theme tweaks live in `frontend/src/pages/_app.tsx` if you want to match corporate branding.
+- For demostration, you can use this into `.env`:
+    TONGYI_API_KEY=sk-5cf4c238d79e4fb1bcc7e8e5d307c0b3
+    TONGYI_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    TONGYI_MODEL=qwen-plus
